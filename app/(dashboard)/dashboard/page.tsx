@@ -476,8 +476,11 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
+          {/* Cities + Próximos shows — side by side */}
+          <div className="flex gap-3 min-h-0">
+
           {/* Cities card */}
-          <Card>
+          <Card className="flex-1 min-w-0">
             <CardHeader className="pb-0 pt-4 px-4 flex flex-row items-center gap-2">
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10">
                 <MapPin className="w-3.5 h-3.5 text-primary" />
@@ -510,8 +513,9 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+
           {/* Próximos shows card */}
-          <Card>
+          <Card className="flex-1 min-w-0">
             <CardHeader className="pb-0 pt-4 px-4 flex flex-row items-center gap-2">
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10">
                 <Clock className="w-3.5 h-3.5 text-primary" />
@@ -572,6 +576,8 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+
+          </div>{/* end Cities + Próximos side-by-side */}
         </div>
 
         {/* ── RIGHT: Charts ───────────────────────────────────────────────── */}

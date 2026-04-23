@@ -89,19 +89,18 @@ function NewContractorDialog({
       const path = `${orgId}/contractors/${Date.now()}.${ext}`
       const { error } = await supabase.storage.from('contractor-photos').upload(path, file, { upsert: true })
       if (error) {
-        // Keep local preview but warn user it won't persist
-        toast({
-          title: 'Aviso: bucket não configurado',
-          description: 'A foto aparece em tela, mas não será salva até criar o bucket "contractor-photos" no Supabase.',
-          variant: 'destructive',
-        })
+        // Bucket doesn't exist yet — photo preview shown but won't be persisted
+        // Silently discard: the insert will run without a photo_url
+        URL.revokeObjectURL(localUrl)
+        setPhotoUrl(null)
       } else {
         const { data } = supabase.storage.from('contractor-photos').getPublicUrl(path)
         setPhotoUrl(data.publicUrl)
         URL.revokeObjectURL(localUrl)
       }
     } catch {
-      toast({ title: 'Erro ao fazer upload da foto', variant: 'destructive' })
+      URL.revokeObjectURL(localUrl)
+      setPhotoUrl(null)
     } finally {
       setUploading(false)
     }
@@ -112,15 +111,19 @@ function NewContractorDialog({
     if (!name.trim()) return
     setLoading(true)
     const supabase = createClient() as any
+    // Build contact JSONB — stores phone AND photo_url (no separate column needed)
+    const contactData: Record<string, string> = {}
+    if (phone) contactData.phone = phone
+    if (photoUrl && photoUrl.startsWith('http')) contactData.photo_url = photoUrl
+
     const { error } = await supabase.from('contractors').insert({
       org_id: orgId,
       name: name.trim(),
       cnpj: cnpj || null,
-      contact: phone ? { phone } : {},
+      contact: contactData,
       city: city || null,
       state: state || null,
       notes: notes || null,
-      photo_url: photoUrl || null,
       tags: [],
       active: true,
     })
@@ -281,7 +284,7 @@ export default function ContratantesPage() {
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-start gap-3">
                     <Avatar className="h-10 w-10 shrink-0">
-                      <AvatarImage src={(c as any).photo_url ?? undefined} />
+                      <AvatarImage src={c.contact?.photo_url ?? undefined} />
                       <AvatarFallback className="bg-muted text-sm font-bold">
                         {c.name.charAt(0).toUpperCase()}
                       </AvatarFallback>

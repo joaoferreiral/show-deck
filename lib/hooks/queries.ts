@@ -262,7 +262,7 @@ export type ContractorRow = {
   notes: string | null
   rating: number | null
   active: boolean
-  contact: Record<string, string>
+  contact: Record<string, string> & { phone?: string; photo_url?: string }
   tags: string[]
   created_at: string
 }
