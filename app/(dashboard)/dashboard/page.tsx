@@ -360,14 +360,14 @@ export default function DashboardPage() {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col bg-background overflow-auto lg:h-full lg:min-h-0 lg:overflow-hidden"
+      className="flex flex-col bg-background lg:h-full lg:min-h-0 lg:overflow-hidden"
       style={isFullscreen ? { height: '100vh', overflow: 'auto' } : undefined}
     >
 
       {/* ── Controls bar ──────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2 px-4 md:px-6 py-2.5 border-b bg-background/95 backdrop-blur-sm shrink-0">
 
-        {/* Period presets */}
+        {/* Row 1: presets + actions */}
         <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 gap-0.5">
           {(['today', 'week', 'month'] as Period[]).map(p => (
             <button
@@ -385,27 +385,31 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        <DateRangePicker
-          value={dateRange}
-          onChange={handleRangeChange}
-          placeholder="Período personalizado"
-          className="hidden sm:flex min-w-[210px] h-8 text-xs"
-        />
-
         <div className="ml-auto flex items-center gap-2">
           <Button asChild size="sm" variant="outline" className="gap-1.5 h-8">
             <Link href="/agenda/novo">
               <Plus className="w-3.5 h-3.5" />
-              Novo show
+              <span className="hidden sm:inline">Novo show</span>
             </Link>
           </Button>
           <Button size="sm" variant="outline" onClick={handleExport} className="gap-1.5 h-8">
             <Download className="w-3.5 h-3.5" />
-            Exportar
+            <span className="hidden sm:inline">Exportar</span>
           </Button>
-          <Button size="sm" variant="outline" onClick={toggleFullscreen} className="h-8 w-8 p-0" title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}>
+          {/* Fullscreen — desktop only */}
+          <Button size="sm" variant="outline" onClick={toggleFullscreen} className="hidden md:flex h-8 w-8 p-0" title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}>
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </Button>
+        </div>
+
+        {/* Row 2: date range picker — full width on mobile */}
+        <div className="w-full sm:w-auto">
+          <DateRangePicker
+            value={dateRange}
+            onChange={handleRangeChange}
+            placeholder="Período personalizado"
+            className="w-full sm:min-w-[210px] h-8 text-xs"
+          />
         </div>
       </div>
 
