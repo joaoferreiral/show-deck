@@ -57,7 +57,7 @@ function FilterPanel({
 }) {
   return (
     <div
-      className="absolute right-0 top-full mt-1 z-50 w-58 rounded-xl border border-border bg-background shadow-xl p-3 space-y-3"
+      className="absolute left-0 top-full mt-1 z-50 w-58 rounded-xl border border-border bg-background shadow-xl p-3 space-y-3"
       onMouseLeave={onClose}
     >
       <div>
@@ -335,65 +335,73 @@ export default function AgendaPage() {
 
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0 flex-wrap bg-background">
-          <NewShowButton orgId={orgId} />
-          <Button
-            variant="outline" size="sm" className="gap-1.5 h-8"
-            onClick={exportPDF} disabled={exporting}
-          >
-            <FileDown className="h-3.5 w-3.5" />
-            {exporting ? 'Gerando…' : 'Exportar PDF'}
-          </Button>
+
+          {/* LEFT: Navigation + view toggle + filters */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Navigation arrows + period */}
+            <div className="flex items-center gap-0.5">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goPrev}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-semibold min-w-[140px] text-center capitalize select-none">
+                {periodLabel}
+              </span>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goNext}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* View toggle */}
+            <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
+              {(['month', 'week'] as ViewMode[]).map((v) => (
+                <Button
+                  key={v} variant={view === v ? 'default' : 'ghost'}
+                  size="sm" className="h-7 px-3 text-xs"
+                  onClick={() => setView(v)}
+                >
+                  {v === 'month' ? 'Mês' : 'Semana'}
+                </Button>
+              ))}
+            </div>
+
+            {/* Filter */}
+            <div className="relative">
+              <Button
+                variant="outline" size="sm" className="h-8 gap-1.5"
+                onClick={() => setFilterOpen((v) => !v)}
+              >
+                Filtros
+                {activeFilters > 0 && (
+                  <span className="h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                    {activeFilters}
+                  </span>
+                )}
+              </Button>
+              {filterOpen && (
+                <FilterPanel
+                  selectedStatuses={selectedStatuses}
+                  onToggleStatus={toggleStatus}
+                  pendencia={pendencia}
+                  onPendencia={setPendencia}
+                  onClose={() => setFilterOpen(false)}
+                />
+              )}
+            </div>
+          </div>
 
           <div className="flex-1" />
 
-          {/* Filter */}
-          <div className="relative">
+          {/* RIGHT: Export + New Show */}
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline" size="sm" className="h-8 gap-1.5"
-              onClick={() => setFilterOpen((v) => !v)}
+              variant="outline" size="sm" className="gap-1.5 h-8"
+              onClick={exportPDF} disabled={exporting}
             >
-              Filtros
-              {activeFilters > 0 && (
-                <span className="h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-                  {activeFilters}
-                </span>
-              )}
+              <FileDown className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{exporting ? 'Gerando…' : 'Exportar PDF'}</span>
+              <span className="sm:hidden">{exporting ? '…' : 'PDF'}</span>
             </Button>
-            {filterOpen && (
-              <FilterPanel
-                selectedStatuses={selectedStatuses}
-                onToggleStatus={toggleStatus}
-                pendencia={pendencia}
-                onPendencia={setPendencia}
-                onClose={() => setFilterOpen(false)}
-              />
-            )}
-          </div>
-
-          {/* View toggle */}
-          <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
-            {(['month', 'week'] as ViewMode[]).map((v) => (
-              <Button
-                key={v} variant={view === v ? 'default' : 'ghost'}
-                size="sm" className="h-7 px-3 text-xs"
-                onClick={() => setView(v)}
-              >
-                {v === 'month' ? 'Mês' : 'Semana'}
-              </Button>
-            ))}
-          </div>
-
-          {/* Navigation */}
-          <div className="flex items-center gap-0.5">
-            <Button variant="ghost" size="icon" className="h-8 w-7" onClick={goPrev}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-sm font-semibold w-[148px] text-center capitalize select-none">
-              {periodLabel}
-            </span>
-            <Button variant="ghost" size="icon" className="h-8 w-7" onClick={goNext}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            <NewShowButton orgId={orgId} />
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ZoomIn, ZoomOut } from 'lucide-react'
 
 // ── Projection ────────────────────────────────────────────────────────────────
 // Expand bounds beyond Brazil's real extent to reduce visual scale
@@ -83,11 +84,24 @@ type Feature = {
   cy: number
 }
 
+const MIN_ZOOM = 1
+const MAX_ZOOM = 4
+const ZOOM_STEP = 0.5
+
 export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) {
   const [features, setFeatures] = useState<Feature[]>([])
   const [hovered, setHovered] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
+  const [zoom, setZoom] = useState(1)
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // Compute dynamic viewBox centered on the map
+  const totalW = W + PAD * 2
+  const totalH = H + PAD * 2
+  const vbW = totalW / zoom
+  const vbH = totalH / zoom
+  const vbX = totalW / 2 - vbW / 2 - PAD
+  const vbY = totalH / 2 - vbH / 2 - PAD
 
   useEffect(() => {
     loadGeoJson().then(data => {
@@ -123,7 +137,7 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
     <div className="relative select-none">
       <svg
         ref={svgRef}
-        viewBox={`${-PAD} ${-PAD} ${W + PAD * 2} ${H + PAD * 2}`}
+        viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
         className="w-full"
       >
         {features.map(({ properties: { sigla, name }, d, cx, cy }) => {
@@ -217,6 +231,26 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
           </g>
         )}
       </svg>
+
+      {/* Zoom controls */}
+      <div className="absolute bottom-8 right-1 flex flex-col gap-0.5">
+        <button
+          onClick={() => setZoom(z => Math.min(z + ZOOM_STEP, MAX_ZOOM))}
+          disabled={zoom >= MAX_ZOOM}
+          className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background/80 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+          title="Zoom in"
+        >
+          <ZoomIn className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => setZoom(z => Math.max(z - ZOOM_STEP, MIN_ZOOM))}
+          disabled={zoom <= MIN_ZOOM}
+          className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background/80 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+          title="Zoom out"
+        >
+          <ZoomOut className="h-3 w-3" />
+        </button>
+      </div>
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-4 mt-1 text-xs text-muted-foreground">
