@@ -15,14 +15,16 @@ import {
 import {
   CalendarDays, DollarSign, TrendingUp,
   MapPin, Users, Building2, Download, Plus, CheckCircle2,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, Clock,
 } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { SHOW_STATUS_COLORS, SHOW_STATUS_LABELS } from '@/types'
+import type { ShowStatus } from '@/types'
 
 import { useSession } from '@/components/providers/session-provider'
-import { useDashboardAnalytics, useArtists, useContractors } from '@/lib/hooks/queries'
+import { useDashboardAnalytics, useArtists, useContractors, useUpcomingShows } from '@/lib/hooks/queries'
 import { formatCurrency } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -151,13 +153,58 @@ function ArtistBtn({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// ─── localStorage helpers ─────────────────────────────────────────────────────
+
+const LS_PERIOD   = 'dashboard:period'
+const LS_RANGE    = 'dashboard:range'
+const LS_ARTIST   = 'dashboard:artist'
+
+function readPeriod(): Period {
+  try { return (localStorage.getItem(LS_PERIOD) as Period) ?? 'month' } catch { return 'month' }
+}
+
+function readRange(): DateRange {
+  try {
+    const raw = localStorage.getItem(LS_RANGE)
+    if (!raw) return getPresetRange('month')
+    const { from, to } = JSON.parse(raw)
+    return { from: from ? new Date(from) : undefined, to: to ? new Date(to) : undefined }
+  } catch { return getPresetRange('month') }
+}
+
+function readArtist(): string {
+  try { return localStorage.getItem(LS_ARTIST) ?? 'todos' } catch { return 'todos' }
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
   const { orgId } = useSession()
-  const [period, setPeriod] = useState<Period>('month')
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(getPresetRange('month'))
-  const [artistFilter, setArtistFilter] = useState<string>('todos')
+  const [period, setPeriod] = useState<Period>(readPeriod)
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(readRange)
+  const [artistFilter, setArtistFilter] = useState<string>(readArtist)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Persist period/range/artist to localStorage whenever they change
+  useEffect(() => {
+    try { localStorage.setItem(LS_PERIOD, period) } catch {}
+  }, [period])
+
+  useEffect(() => {
+    try {
+      if (dateRange?.from) {
+        localStorage.setItem(LS_RANGE, JSON.stringify({
+          from: dateRange.from.toISOString(),
+          to: dateRange.to?.toISOString() ?? null,
+        }))
+      }
+    } catch {}
+  }, [dateRange])
+
+  useEffect(() => {
+    try { localStorage.setItem(LS_ARTIST, artistFilter) } catch {}
+  }, [artistFilter])
 
   function toggleFullscreen() {
     if (!document.fullscreenElement) {
@@ -178,8 +225,10 @@ export default function DashboardPage() {
     setDateRange(getPresetRange(p))
   }
   function handleRangeChange(r: DateRange | undefined) {
-    setDateRange(r)
-    setPeriod('month')
+    if (r?.from && r?.to) {
+      setDateRange(r)
+      setPeriod('month')
+    }
   }
 
   const from = dateRange?.from ? startOfDay(dateRange.from).toISOString() : startOfMonth(new Date()).toISOString()
@@ -188,6 +237,7 @@ export default function DashboardPage() {
   const { data: shows = [], isLoading } = useDashboardAnalytics(orgId, from, to)
   const { data: artistsData } = useArtists(orgId)
   const { data: contractors = [] } = useContractors(orgId)
+  const { data: upcomingShows = [] } = useUpcomingShows(orgId)
   const artists = artistsData?.artists ?? []
 
   const contractorTagsMap = useMemo(
@@ -456,6 +506,68 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          {/* Próximos shows card */}
+          <Card>
+            <CardHeader className="pb-0 pt-4 px-4 flex flex-row items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10">
+                <Clock className="w-3.5 h-3.5 text-primary" />
+              </div>
+              <CardTitle className="text-sm font-semibold">Próximos Shows</CardTitle>
+            </CardHeader>
+            <CardContent className="px-0 pb-1 pt-3">
+              {upcomingShows.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-6 italic">
+                  Nenhum show futuro cadastrado.
+                </p>
+              ) : (
+                <div className="divide-y divide-border/60">
+                  {upcomingShows.map((show) => {
+                    const date = new Date(show.start_at)
+                    const isThisMonth = date.getMonth() === new Date().getMonth()
+                    const color = SHOW_STATUS_COLORS[show.status as ShowStatus]
+                    const daysUntil = Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                    return (
+                      <Link
+                        key={show.id}
+                        href={`/agenda/${show.id}`}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors group"
+                      >
+                        {/* Date badge */}
+                        <div className={cn(
+                          'flex flex-col items-center justify-center rounded-lg border w-10 h-10 shrink-0 text-center transition-colors',
+                          isThisMonth ? 'border-primary/30 bg-primary/8' : 'border-border bg-muted/40',
+                        )}>
+                          <span className={cn('text-[10px] font-semibold uppercase leading-none', isThisMonth ? 'text-primary' : 'text-muted-foreground')}>
+                            {format(date, 'MMM', { locale: ptBR })}
+                          </span>
+                          <span className={cn('text-sm font-bold leading-none mt-0.5', isThisMonth ? 'text-primary' : 'text-foreground')}>
+                            {format(date, 'd')}
+                          </span>
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate group-hover:text-primary transition-colors">{show.title}</p>
+                          <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                            {show.artists?.name ?? '—'}
+                            {show.city ? ` · ${show.city}${show.state ? ` – ${show.state}` : ''}` : ''}
+                          </p>
+                        </div>
+
+                        {/* Right: days until + status dot */}
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                          <span className="text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+                            {daysUntil === 0 ? 'Hoje' : daysUntil === 1 ? 'Amanhã' : `${daysUntil}d`}
+                          </span>
+                        </div>
+                      </Link>
+                    )
+                  })}
                 </div>
               )}
             </CardContent>

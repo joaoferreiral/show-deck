@@ -37,6 +37,41 @@ export function useDashboardAnalytics(orgId: string, from: string, to: string) {
   })
 }
 
+// ─── Upcoming Shows ───────────────────────────────────────────────────────────
+
+export type UpcomingShow = {
+  id: string
+  title: string
+  status: string
+  start_at: string
+  city: string | null
+  state: string | null
+  venue_name: string | null
+  artists: { id: string; name: string; color: string } | null
+}
+
+export function useUpcomingShows(orgId: string, limit = 8) {
+  return useQuery({
+    queryKey: ['upcoming-shows', orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const supabase = createClient() as any
+      const now = new Date().toISOString()
+      const { data, error } = await supabase
+        .from('shows')
+        .select('id, title, status, start_at, city, state, venue_name, artists(id, name, color)')
+        .eq('org_id', orgId)
+        .gte('start_at', now)
+        .neq('status', 'cancelado')
+        .order('start_at', { ascending: true })
+        .limit(limit)
+      if (error) throw error
+      return (data ?? []) as UpcomingShow[]
+    },
+    staleTime: 60 * 1000,
+  })
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export function useDashboardStats(orgId: string) {
