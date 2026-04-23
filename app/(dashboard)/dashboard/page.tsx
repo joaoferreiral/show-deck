@@ -360,8 +360,8 @@ export default function DashboardPage() {
   return (
     <div
       ref={containerRef}
-      className="flex flex-col h-full min-h-0 bg-background"
-      style={isFullscreen ? { height: '100vh' } : undefined}
+      className="flex flex-col bg-background overflow-auto lg:h-full lg:min-h-0 lg:overflow-hidden"
+      style={isFullscreen ? { height: '100vh', overflow: 'auto' } : undefined}
     >
 
       {/* ── Controls bar ──────────────────────────────────────────────────── */}
@@ -431,7 +431,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Main body ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row gap-4 px-4 md:px-6 pb-6 pt-2 flex-1 min-h-0 overflow-auto">
+      <div className="flex flex-col lg:flex-row gap-4 px-4 md:px-6 pb-6 pt-2 lg:flex-1 lg:min-h-0 lg:overflow-auto">
 
         {/* ── LEFT: Artist filter — hidden on mobile ───────────────────────── */}
         <div className="hidden lg:flex w-44 shrink-0 flex-col gap-1">
@@ -464,14 +464,14 @@ export default function DashboardPage() {
         <div className="flex-1 min-w-0 space-y-3">
 
           {/* Map card */}
-          <Card className="overflow-hidden flex flex-col" style={{ height: 320 }}>
-            <CardHeader className="pb-0 pt-4 px-4 flex flex-row items-center gap-2 shrink-0">
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-0 pt-4 px-4 flex flex-row items-center gap-2">
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10">
                 <MapPin className="w-3.5 h-3.5 text-primary" />
               </div>
               <CardTitle className="text-sm font-semibold">Eventos no Brasil</CardTitle>
             </CardHeader>
-            <CardContent className="px-3 pb-2 pt-2 flex-1 min-h-0">
+            <CardContent className="px-3 pb-3 pt-2">
               <BrazilGeoMap showsByState={byState} primaryColor="#7c3aed" />
             </CardContent>
           </Card>

@@ -188,10 +188,10 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
   const maxCount = Math.max(1, ...Object.values(showsByState))
 
   return (
-    <div className="flex flex-col h-full gap-2">
+    <div className="flex flex-col gap-2">
 
-      {/* Map area — absolute SVG so height never depends on flex chain */}
-      <div ref={wrapRef} className="relative flex-1 min-h-0 overflow-hidden rounded-lg" style={{ minHeight: 180 }}>
+      {/* Map area — padding-bottom trick: height = % of width, always works */}
+      <div ref={wrapRef} className="relative w-full overflow-hidden rounded-lg" style={{ paddingBottom: '78%' }}>
         <svg
           ref={svgRef}
           viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
