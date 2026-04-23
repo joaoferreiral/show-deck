@@ -414,17 +414,15 @@ export default function DashboardPage() {
         <div className="flex-1 min-w-0 space-y-3">
 
           {/* Map card */}
-          <Card className="overflow-hidden">
-            <CardHeader className="pb-0 pt-4 px-4 flex flex-row items-center gap-2">
+          <Card className="overflow-hidden flex flex-col" style={{ height: 320 }}>
+            <CardHeader className="pb-0 pt-4 px-4 flex flex-row items-center gap-2 shrink-0">
               <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10">
                 <MapPin className="w-3.5 h-3.5 text-primary" />
               </div>
               <CardTitle className="text-sm font-semibold">Eventos no Brasil</CardTitle>
             </CardHeader>
-            <CardContent className="px-3 pb-2 pt-0 flex justify-center">
-              <div className="w-full max-w-[260px]">
-                <BrazilGeoMap showsByState={byState} primaryColor="#7c3aed" />
-              </div>
+            <CardContent className="px-3 pb-2 pt-2 flex-1 min-h-0">
+              <BrazilGeoMap showsByState={byState} primaryColor="#7c3aed" />
             </CardContent>
           </Card>
 

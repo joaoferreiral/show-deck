@@ -1,19 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ZoomIn, ZoomOut } from 'lucide-react'
 
 // ── Projection ────────────────────────────────────────────────────────────────
-// Expand bounds beyond Brazil's real extent to reduce visual scale
-// (more "ocean" around the country → smaller map within the card)
-const MIN_LON = -85
-const MAX_LON = -20
-const MIN_LAT = -40
-const MAX_LAT = 12
+const MIN_LON = -75
+const MAX_LON = -28
+const MIN_LAT = -35
+const MAX_LAT = 6
 const W = 460
 const H = 420
-// Padding so tooltip/glow never gets clipped by the card's overflow
-const PAD = 24
+const PAD = 8   // smaller pad — map fills the card
 
 function project(lon: number, lat: number): [number, number] {
   const x = ((lon - MIN_LON) / (MAX_LON - MIN_LON)) * W
@@ -29,32 +26,22 @@ function ringToD(ring: [number, number][]): string {
 }
 
 function geometryToD(geometry: any): string {
-  if (geometry.type === 'Polygon') {
-    return geometry.coordinates.map(ringToD).join(' ')
-  }
-  if (geometry.type === 'MultiPolygon') {
-    return geometry.coordinates.flatMap((poly: any) => poly.map(ringToD)).join(' ')
-  }
+  if (geometry.type === 'Polygon') return geometry.coordinates.map(ringToD).join(' ')
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates.flatMap((p: any) => p.map(ringToD)).join(' ')
   return ''
 }
 
-// ── Centroid (label position) ──────────────────────────────────────────────────
 function centroid(geometry: any): [number, number] {
   const rings: [number, number][][] =
     geometry.type === 'Polygon'
       ? [geometry.coordinates[0]]
       : geometry.coordinates.map((p: any) => p[0])
-
-  // Pick the ring with most points (largest polygon for MultiPolygon)
   const ring = rings.sort((a, b) => b.length - a.length)[0]
-  const sum = ring.reduce(
-    (acc, [lon, lat]) => [acc[0] + lon, acc[1] + lat],
-    [0, 0],
-  )
+  const sum = ring.reduce((acc, [lon, lat]) => [acc[0] + lon, acc[1] + lat], [0, 0])
   return project(sum[0] / ring.length, sum[1] / ring.length)
 }
 
-// ── Module-level cache ─────────────────────────────────────────────────────────
+// ── GeoJSON cache ─────────────────────────────────────────────────────────────
 let _geojson: any = null
 let _promise: Promise<any> | null = null
 
@@ -69,8 +56,7 @@ async function loadGeoJson() {
   return _promise
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface Props {
   showsByState: Record<string, number>
   primaryColor?: string
@@ -84,176 +70,239 @@ type Feature = {
   cy: number
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────────
 const MIN_ZOOM = 1
-const MAX_ZOOM = 4
+const MAX_ZOOM = 5
 const ZOOM_STEP = 0.5
 
+// ── Component ─────────────────────────────────────────────────────────────────
 export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) {
   const [features, setFeatures] = useState<Feature[]>([])
   const [hovered, setHovered] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
   const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })     // in SVG units
+  const [dragging, setDragging] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const dragStart = useRef({ cx: 0, cy: 0, px: 0, py: 0 })
 
-  // Compute dynamic viewBox centered on the map
+  // ── ViewBox computation ───────────────────────────────────────────────────
   const totalW = W + PAD * 2
   const totalH = H + PAD * 2
   const vbW = totalW / zoom
   const vbH = totalH / zoom
-  const vbX = totalW / 2 - vbW / 2 - PAD
-  const vbY = totalH / 2 - vbH / 2 - PAD
+  // Clamp pan so the map can't be dragged fully out of view
+  const maxPX = (totalW - vbW) / 2
+  const maxPY = (totalH - vbH) / 2
+  const cpx = Math.max(-maxPX, Math.min(maxPX, pan.x))
+  const cpy = Math.max(-maxPY, Math.min(maxPY, pan.y))
+  const vbX = (W / 2) - vbW / 2 - cpx
+  const vbY = (H / 2) - vbH / 2 - cpy
 
   useEffect(() => {
     loadGeoJson().then(data => {
       if (!data) return
-      setFeatures(
-        data.features.map((f: any) => {
-          const d = geometryToD(f.geometry)
-          const [cx, cy] = centroid(f.geometry)
-          return { properties: f.properties, geometry: f.geometry, d, cx, cy }
-        }),
-      )
+      setFeatures(data.features.map((f: any) => ({
+        properties: f.properties,
+        geometry: f.geometry,
+        d: geometryToD(f.geometry),
+        ...(() => { const [cx, cy] = centroid(f.geometry); return { cx, cy } })(),
+      })))
     })
   }, [])
 
-  const maxCount = Math.max(1, ...Object.values(showsByState))
+  // ── Drag handlers ─────────────────────────────────────────────────────────
+  function onMouseDown(e: React.MouseEvent<SVGSVGElement>) {
+    if (e.button !== 0) return
+    setDragging(true)
+    setTooltip(null)
+    dragStart.current = { cx: e.clientX, cy: e.clientY, px: cpx, py: cpy }
+    e.preventDefault()
+  }
 
-  function handleMouseMove(e: React.MouseEvent<SVGPathElement>, sigla: string) {
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragging) return
     const svg = svgRef.current
     if (!svg) return
     const rect = svg.getBoundingClientRect()
-    const scaleX = W / rect.width
-    const scaleY = H / rect.height
+    const dxSvg = ((e.clientX - dragStart.current.cx) / rect.width)  * vbW
+    const dySvg = ((e.clientY - dragStart.current.cy) / rect.height) * vbH
+    setPan({ x: dragStart.current.px + dxSvg, y: dragStart.current.py + dySvg })
+  }, [dragging, vbW, vbH])
+
+  const onMouseUp = useCallback(() => setDragging(false), [])
+
+  useEffect(() => {
+    if (!dragging) return
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+  }, [dragging, onMouseMove, onMouseUp])
+
+  // Touch drag support
+  const touchStart = useRef({ tx: 0, ty: 0, px: 0, py: 0 })
+  function onTouchStart(e: React.TouchEvent<SVGSVGElement>) {
+    const t = e.touches[0]
+    touchStart.current = { tx: t.clientX, ty: t.clientY, px: cpx, py: cpy }
+  }
+  function onTouchMove(e: React.TouchEvent<SVGSVGElement>) {
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    const t = e.touches[0]
+    const dxSvg = ((t.clientX - touchStart.current.tx) / rect.width)  * vbW
+    const dySvg = ((t.clientY - touchStart.current.ty) / rect.height) * vbH
+    setPan({ x: touchStart.current.px + dxSvg, y: touchStart.current.py + dySvg })
+  }
+
+  // ── Zoom helpers ──────────────────────────────────────────────────────────
+  function zoomIn() { setZoom(z => Math.min(z + ZOOM_STEP, MAX_ZOOM)) }
+  function zoomOut() {
+    setZoom(z => {
+      const next = Math.max(z - ZOOM_STEP, MIN_ZOOM)
+      if (next === MIN_ZOOM) setPan({ x: 0, y: 0 })
+      return next
+    })
+  }
+
+  // ── Tooltip ───────────────────────────────────────────────────────────────
+  // Use client-relative position on the wrapper div for the HTML tooltip
+  function handlePathMouseMove(e: React.MouseEvent<SVGPathElement>, sigla: string) {
+    if (dragging) return
+    const wrap = wrapRef.current
+    if (!wrap) return
+    const rect = wrap.getBoundingClientRect()
     const count = showsByState[sigla] ?? 0
     const name = features.find(f => f.properties.sigla === sigla)?.properties.name ?? sigla
     setTooltip({
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY - 20,
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
       text: `${name}: ${count} show${count !== 1 ? 's' : ''}`,
     })
   }
 
+  const maxCount = Math.max(1, ...Object.values(showsByState))
+
   return (
-    <div className="relative select-none">
-      <svg
-        ref={svgRef}
-        viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
-        className="w-full"
-      >
-        {features.map(({ properties: { sigla, name }, d, cx, cy }) => {
-          const count = showsByState[sigla] ?? 0
-          const hasShows = count > 0
-          const isHovered = hovered === sigla
+    <div className="flex flex-col h-full gap-2">
 
-          // Opacity scales with count
-          const opacity = hasShows
-            ? 0.55 + 0.45 * Math.sqrt(count / maxCount)
-            : 0
+      {/* Map area */}
+      <div ref={wrapRef} className="relative flex-1 min-h-0 overflow-hidden rounded-lg">
+        <svg
+          ref={svgRef}
+          viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
+          className="w-full h-full"
+          style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+          onMouseDown={onMouseDown}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+        >
+          {features.map(({ properties: { sigla }, d, cx, cy }) => {
+            const count = showsByState[sigla] ?? 0
+            const hasShows = count > 0
+            const isHovered = hovered === sigla
+            const opacity = hasShows ? 0.5 + 0.5 * Math.sqrt(count / maxCount) : 0
 
-          return (
-            <g key={sigla}>
-              <path
-                d={d}
-                fill={hasShows ? primaryColor : 'hsl(var(--muted))'}
-                fillOpacity={hasShows ? opacity : 0.25}
-                stroke={hasShows ? 'white' : 'hsl(var(--border))'}
-                strokeWidth={hasShows ? 1 : 0.5}
-                style={{
-                  cursor: hasShows ? 'pointer' : 'default',
-                  transition: 'fill-opacity 0.2s',
-                  filter: isHovered && hasShows ? `drop-shadow(0 0 6px ${primaryColor}80)` : 'none',
-                }}
-                onMouseEnter={() => setHovered(sigla)}
-                onMouseLeave={() => { setHovered(null); setTooltip(null) }}
-                onMouseMove={e => { if (hasShows) handleMouseMove(e, sigla) }}
-              />
-
-              {/* State abbreviation label */}
-              <text
-                x={cx}
-                y={cy + 0.5}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={hasShows ? 8.5 : 7}
-                fontWeight={hasShows ? 700 : 400}
-                fill={hasShows ? 'white' : 'hsl(var(--muted-foreground))'}
-                fillOpacity={hasShows ? 0.95 : 0.6}
-                style={{ pointerEvents: 'none' }}
-              >
-                {sigla}
-              </text>
-
-              {/* Show count badge */}
-              {hasShows && (
+            return (
+              <g key={sigla}>
+                <path
+                  d={d}
+                  fill={hasShows ? primaryColor : 'hsl(var(--muted))'}
+                  fillOpacity={hasShows ? opacity : 0.25}
+                  stroke={hasShows ? 'white' : 'hsl(var(--border))'}
+                  strokeWidth={hasShows ? 1 : 0.5}
+                  style={{
+                    cursor: hasShows ? 'pointer' : dragging ? 'grabbing' : 'grab',
+                    transition: 'fill-opacity 0.2s',
+                    filter: isHovered && hasShows ? `drop-shadow(0 0 6px ${primaryColor}80)` : 'none',
+                  }}
+                  onMouseEnter={() => !dragging && setHovered(sigla)}
+                  onMouseLeave={() => { setHovered(null); setTooltip(null) }}
+                  onMouseMove={e => { if (hasShows) handlePathMouseMove(e, sigla) }}
+                />
                 <text
-                  x={cx}
-                  y={cy + 11}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={6.5}
-                  fontWeight={600}
-                  fill="white"
-                  fillOpacity={0.85}
+                  x={cx} y={cy + 0.5}
+                  textAnchor="middle" dominantBaseline="middle"
+                  fontSize={hasShows ? 8.5 : 7}
+                  fontWeight={hasShows ? 700 : 400}
+                  fill={hasShows ? 'white' : 'hsl(var(--muted-foreground))'}
+                  fillOpacity={hasShows ? 0.95 : 0.6}
                   style={{ pointerEvents: 'none' }}
                 >
-                  ({count})
+                  {sigla}
                 </text>
-              )}
-            </g>
-          )
-        })}
+                {hasShows && (
+                  <text
+                    x={cx} y={cy + 11}
+                    textAnchor="middle" dominantBaseline="middle"
+                    fontSize={6.5} fontWeight={600}
+                    fill="white" fillOpacity={0.85}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    ({count})
+                  </text>
+                )}
+              </g>
+            )
+          })}
+        </svg>
 
-        {/* SVG Tooltip */}
-        {tooltip && (
-          <g style={{ pointerEvents: 'none' }}>
-            <rect
-              x={Math.min(tooltip.x - 55, W - 115)}
-              y={tooltip.y - 14}
-              width={110}
-              height={22}
-              rx={4}
-              fill="hsl(var(--popover))"
-              stroke="hsl(var(--border))"
-              strokeWidth={0.8}
-              filter="drop-shadow(0 2px 6px rgba(0,0,0,0.18))"
-            />
-            <text
-              x={Math.min(tooltip.x, W - 60)}
-              y={tooltip.y - 1}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={8.5}
-              fontWeight={600}
-              fill="hsl(var(--popover-foreground))"
-            >
-              {tooltip.text}
-            </text>
-          </g>
+        {/* HTML Tooltip */}
+        {tooltip && !dragging && (
+          <div
+            className="pointer-events-none absolute z-10 rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs font-semibold text-popover-foreground shadow-lg whitespace-nowrap"
+            style={{
+              left: Math.min(tooltip.x + 12, (wrapRef.current?.clientWidth ?? 300) - 160),
+              top: tooltip.y - 32,
+            }}
+          >
+            {tooltip.text}
+          </div>
         )}
-      </svg>
 
-      {/* Zoom controls */}
-      <div className="absolute bottom-8 right-1 flex flex-col gap-0.5">
-        <button
-          onClick={() => setZoom(z => Math.min(z + ZOOM_STEP, MAX_ZOOM))}
-          disabled={zoom >= MAX_ZOOM}
-          className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background/80 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
-          title="Zoom in"
-        >
-          <ZoomIn className="h-3 w-3" />
-        </button>
-        <button
-          onClick={() => setZoom(z => Math.max(z - ZOOM_STEP, MIN_ZOOM))}
-          disabled={zoom <= MIN_ZOOM}
-          className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background/80 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
-          title="Zoom out"
-        >
-          <ZoomOut className="h-3 w-3" />
-        </button>
+        {/* Zoom controls — top-right corner */}
+        <div className="absolute top-2 right-2 flex flex-col gap-1">
+          <button
+            onClick={zoomIn}
+            disabled={zoom >= MAX_ZOOM}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background/85 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+            title="Aproximar"
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={zoomOut}
+            disabled={zoom <= MIN_ZOOM}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background/85 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+            title="Afastar"
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </button>
+          {zoom > 1 && (
+            <button
+              onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }}
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background/85 backdrop-blur-sm text-[9px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm"
+              title="Resetar zoom"
+            >
+              1×
+            </button>
+          )}
+        </div>
+
+        {/* Zoom indicator */}
+        {zoom > 1 && (
+          <div className="absolute bottom-2 left-2 rounded-md bg-background/70 backdrop-blur-sm px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground border border-border">
+            {zoom.toFixed(1)}×
+          </div>
+        )}
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 mt-1 text-xs text-muted-foreground">
+      <div className="flex items-center justify-center gap-4 pb-1 text-xs text-muted-foreground shrink-0">
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: primaryColor }} />
           Com shows
@@ -263,7 +312,7 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
           Sem shows
         </span>
         {Object.values(showsByState).some(v => v > 1) && (
-          <span className="text-muted-foreground/60 italic">
+          <span className="text-muted-foreground/60 italic hidden sm:inline">
             Intensidade ∝ quantidade
           </span>
         )}
