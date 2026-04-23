@@ -190,8 +190,8 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
   return (
     <div className="flex flex-col gap-2">
 
-      {/* Map area — padding-bottom trick: height = % of width, always works */}
-      <div ref={wrapRef} className="relative w-full overflow-hidden rounded-lg" style={{ paddingBottom: '78%' }}>
+      {/* Map area — padding-bottom cria altura intrínseca; min() limita em desktop */}
+      <div ref={wrapRef} className="relative w-full overflow-hidden rounded-lg" style={{ paddingBottom: 'min(78%, 260px)' }}>
         <svg
           ref={svgRef}
           viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
