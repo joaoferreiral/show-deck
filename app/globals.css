@@ -4,48 +4,102 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    /* ── Backgrounds ── */
+    --background: 0 0% 99%;
+    --foreground: 240 10% 6%;
+
+    /* ── Card / surface ── */
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 240 10% 6%;
+
+    /* ── Popover ── */
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 262 83% 58%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 262 83% 58%;
+    --popover-foreground: 240 10% 6%;
+
+    /* ── Sidebar (slightly distinct from card) ── */
+    --sidebar: 240 6% 97%;
+    --sidebar-foreground: 240 10% 6%;
+
+    /* ── Primary — violet (tokenized for easy swap) ── */
+    --primary: 262 83% 56%;
+    --primary-foreground: 0 0% 100%;
+
+    /* ── Secondary ── */
+    --secondary: 240 5% 94%;
+    --secondary-foreground: 240 6% 20%;
+
+    /* ── Muted ── */
+    --muted: 240 5% 95%;
+    --muted-foreground: 240 4% 48%;
+
+    /* ── Accent ── */
+    --accent: 262 80% 96%;
+    --accent-foreground: 262 83% 46%;
+
+    /* ── Destructive ── */
+    --destructive: 0 84% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Border / Input / Ring ── */
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 262 83% 56%;
+
+    /* ── Radius ── */
     --radius: 0.5rem;
+
+    /* ── Shadows ── */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.07);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 7%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 7%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 262 83% 65%;
-    --primary-foreground: 240 10% 3.9%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    /* ── Backgrounds ── */
+    --background: 240 8% 7%;
+    --foreground: 0 0% 95%;
+
+    /* ── Card / surface ── */
+    --card: 240 7% 10%;
+    --card-foreground: 0 0% 95%;
+
+    /* ── Popover ── */
+    --popover: 240 7% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    /* ── Sidebar ── */
+    --sidebar: 240 8% 8.5%;
+    --sidebar-foreground: 0 0% 95%;
+
+    /* ── Primary ── */
+    --primary: 262 80% 64%;
+    --primary-foreground: 0 0% 100%;
+
+    /* ── Secondary ── */
+    --secondary: 240 5% 16%;
+    --secondary-foreground: 0 0% 92%;
+
+    /* ── Muted ── */
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 4% 54%;
+
+    /* ── Accent ── */
+    --accent: 262 50% 20%;
+    --accent-foreground: 262 80% 78%;
+
+    /* ── Destructive ── */
+    --destructive: 0 68% 46%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 262 83% 65%;
+
+    /* ── Border / Input / Ring ── */
+    --border: 240 5% 18%;
+    --input: 240 5% 18%;
+    --ring: 262 80% 64%;
+
+    /* ── Shadows (less visible on dark) ── */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
   }
 }
 
@@ -53,8 +107,40 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Refined scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+
+  /* Focus ring */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-1 ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .shadow-card {
+    box-shadow: var(--shadow);
+  }
+  .shadow-card-md {
+    box-shadow: var(--shadow-md);
   }
 }

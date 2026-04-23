@@ -77,16 +77,34 @@ function NewContractorDialog({
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+
+    // Show local preview immediately
+    const localUrl = URL.createObjectURL(file)
+    setPhotoUrl(localUrl)
     setUploading(true)
-    const supabase = createClient() as any
-    const ext = file.name.split('.').pop()
-    const path = `${orgId}/contractors/${Date.now()}.${ext}`
-    const { error } = await supabase.storage.from('contractor-photos').upload(path, file, { upsert: true })
-    if (!error) {
-      const { data } = supabase.storage.from('contractor-photos').getPublicUrl(path)
-      setPhotoUrl(data.publicUrl)
+
+    try {
+      const supabase = createClient() as any
+      const ext = file.name.split('.').pop()
+      const path = `${orgId}/contractors/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('contractor-photos').upload(path, file, { upsert: true })
+      if (error) {
+        // Keep local preview but warn user it won't persist
+        toast({
+          title: 'Aviso: bucket não configurado',
+          description: 'A foto aparece em tela, mas não será salva até criar o bucket "contractor-photos" no Supabase.',
+          variant: 'destructive',
+        })
+      } else {
+        const { data } = supabase.storage.from('contractor-photos').getPublicUrl(path)
+        setPhotoUrl(data.publicUrl)
+        URL.revokeObjectURL(localUrl)
+      }
+    } catch {
+      toast({ title: 'Erro ao fazer upload da foto', variant: 'destructive' })
+    } finally {
+      setUploading(false)
     }
-    setUploading(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {

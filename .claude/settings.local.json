@@ -21,7 +21,9 @@
       "Bash(node -e \"const d=require\\('./public/brazil-states.geojson'\\); console.log\\('Features:', d.features.length\\); console.log\\('Props of first:', JSON.stringify\\(d.features[0].properties\\)\\)\")",
       "Bash(node -e \"const fs=require\\('fs'\\); const d=JSON.parse\\(fs.readFileSync\\('./public/brazil-states.geojson','utf8'\\)\\); console.log\\('Features:', d.features.length\\); console.log\\('Props:', JSON.stringify\\(d.features[0].properties\\)\\)\")",
       "Bash(node -e ' *)",
-      "Bash(findstr -i \"time\\\\|clock\\\\|picker\")"
+      "Bash(findstr -i \"time\\\\|clock\\\\|picker\")",
+      "Bash(gh --version)",
+      "Bash(gh auth *)"
     ]
   }
 }
