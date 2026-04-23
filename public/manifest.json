@@ -1,0 +1,49 @@
+{
+  "name": "ShowDeck",
+  "short_name": "ShowDeck",
+  "description": "Sistema de gestão de shows para artistas e empresários",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "lang": "pt-BR",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novo Show",
+      "short_name": "Novo Show",
+      "url": "/agenda?action=new",
+      "icons": [{ "src": "/icons/shortcut-new.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Agenda Hoje",
+      "short_name": "Hoje",
+      "url": "/agenda?view=day",
+      "icons": [{ "src": "/icons/shortcut-agenda.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Recebíveis",
+      "short_name": "Recebíveis",
+      "url": "/financeiro",
+      "icons": [{ "src": "/icons/shortcut-finance.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ],
+  "screenshots": [],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

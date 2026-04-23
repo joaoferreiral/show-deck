@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jq .dependencies -r)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('next:', p.dependencies.next, 'eslint:', p.devDependencies.eslint\\)\")",
+      "Bash(npm run *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\('next:', p.dependencies.next\\)\")",
+      "Bash(npx next *)",
+      "Bash(npx tsc *)",
+      "Read(//c/Users/Joao/Downloads/**)",
+      "Bash(python -c \"import pdfplumber; pdf = pdfplumber.open\\('Agenda_4-2026.pdf'\\); [print\\(f'--- PAGE {i+1} ---\\\\n', p.extract_text\\(\\)\\) for i, p in enumerate\\(pdf.pages\\)]; pdf.close\\(\\)\")",
+      "Bash(python -c \"from pypdf import PdfReader; r = PdfReader\\('Agenda_4-2026.pdf'\\); [print\\(f'--- PAGE {i+1} ---\\\\n', p.extract_text\\(\\)\\) for i, p in enumerate\\(r.pages\\)]\")",
+      "Bash(pip install *)",
+      "Bash(npm list *)",
+      "Bash(node -e \"require\\('recharts'\\); console.log\\('recharts OK'\\)\")",
+      "Bash(node -e \"require\\('date-fns'\\); console.log\\('date-fns OK'\\)\")",
+      "Bash(Get-Content \"app\\\\\\(dashboard\\)\\\\dashboard\\\\page.tsx\")",
+      "Bash(Select-Object -First 5)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson\" -o \"public/brazil-states.geojson\")",
+      "Bash(node -e \"const d=require\\('./public/brazil-states.geojson'\\); console.log\\('Features:', d.features.length\\); console.log\\('Props of first:', JSON.stringify\\(d.features[0].properties\\)\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); const d=JSON.parse\\(fs.readFileSync\\('./public/brazil-states.geojson','utf8'\\)\\); console.log\\('Features:', d.features.length\\); console.log\\('Props:', JSON.stringify\\(d.features[0].properties\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(findstr -i \"time\\\\|clock\\\\|picker\")"
+    ]
+  }
+}
