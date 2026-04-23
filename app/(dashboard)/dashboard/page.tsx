@@ -62,15 +62,15 @@ function KpiCard({
 }) {
   return (
     <Card className="overflow-hidden">
-      <CardContent className="p-4 md:p-5">
-        <div className="flex items-start justify-between gap-3">
+      <CardContent className="p-3 md:p-5">
+        <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted-foreground font-medium">{label}</p>
-            <p className="text-2xl font-bold tracking-tight mt-1 tabular-nums truncate">{value}</p>
-            {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+            <p className="text-[10px] md:text-xs text-muted-foreground font-medium leading-tight">{label}</p>
+            <p className="text-lg md:text-2xl font-bold tracking-tight mt-1 tabular-nums truncate">{value}</p>
+            {sub && <p className="text-[10px] md:text-xs text-muted-foreground mt-0.5 leading-tight">{sub}</p>}
           </div>
-          <div className="rounded-lg p-2 shrink-0 mt-0.5" style={{ backgroundColor: `${accent}15` }}>
-            <Icon className="w-4 h-4" style={{ color: accent }} />
+          <div className="rounded-lg p-1.5 md:p-2 shrink-0 mt-0.5" style={{ backgroundColor: `${accent}15` }}>
+            <Icon className="w-3.5 h-3.5 md:w-4 md:h-4" style={{ color: accent }} />
           </div>
         </div>
       </CardContent>
@@ -389,7 +389,7 @@ export default function DashboardPage() {
           value={dateRange}
           onChange={handleRangeChange}
           placeholder="Período personalizado"
-          className="min-w-[210px] h-8 text-xs"
+          className="hidden sm:flex min-w-[210px] h-8 text-xs"
         />
 
         <div className="ml-auto flex items-center gap-2">
@@ -431,10 +431,10 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Main body ─────────────────────────────────────────────────────── */}
-      <div className="flex gap-4 px-4 md:px-6 pb-6 pt-2 flex-1 min-h-0 overflow-auto">
+      <div className="flex flex-col lg:flex-row gap-4 px-4 md:px-6 pb-6 pt-2 flex-1 min-h-0 overflow-auto">
 
-        {/* ── LEFT: Artist filter ─────────────────────────────────────────── */}
-        <div className="w-44 shrink-0 flex flex-col gap-1">
+        {/* ── LEFT: Artist filter — hidden on mobile ───────────────────────── */}
+        <div className="hidden lg:flex w-44 shrink-0 flex-col gap-1">
           <p className="text-[10px] font-semibold text-muted-foreground/60 tracking-widest uppercase px-2.5 pb-1">
             Filtrar
           </p>
@@ -476,8 +476,8 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Cities + Próximos shows — side by side */}
-          <div className="flex gap-3 min-h-0">
+          {/* Cities + Próximos shows — side by side on md+, stacked on mobile */}
+          <div className="flex flex-col sm:flex-row gap-3 min-h-0">
 
           {/* Cities card */}
           <Card className="flex-1 min-w-0">
@@ -581,7 +581,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── RIGHT: Charts ───────────────────────────────────────────────── */}
-        <div className="w-64 shrink-0 space-y-3">
+        <div className="w-full lg:w-64 lg:shrink-0 space-y-3">
 
           {/* Tipo de contrato */}
           <Card>

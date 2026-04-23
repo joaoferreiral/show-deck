@@ -190,12 +190,12 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
   return (
     <div className="flex flex-col h-full gap-2">
 
-      {/* Map area */}
-      <div ref={wrapRef} className="relative flex-1 min-h-0 overflow-hidden rounded-lg">
+      {/* Map area — absolute SVG so height never depends on flex chain */}
+      <div ref={wrapRef} className="relative flex-1 min-h-0 overflow-hidden rounded-lg" style={{ minHeight: 180 }}>
         <svg
           ref={svgRef}
           viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
-          className="w-full h-full"
+          className="absolute inset-0 w-full h-full"
           style={{ cursor: dragging ? 'grabbing' : 'grab' }}
           onMouseDown={onMouseDown}
           onTouchStart={onTouchStart}
