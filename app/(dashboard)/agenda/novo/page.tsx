@@ -15,7 +15,7 @@ import { ptBR } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { initials } from '@/lib/utils'
 import {
-  ChevronRight, Upload, X, FileText, Loader2, Save,
+  Upload, X, FileText, Loader2, Save,
   CalendarDays, Banknote, ArrowLeftRight, Ticket, Percent,
   Info, MapPin, Users, Link2,
 } from 'lucide-react'
@@ -27,7 +27,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { TimePicker } from '@/components/ui/time-picker'
-import Link from 'next/link'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -383,17 +382,8 @@ export default function NovoEventoPage() {
     <div className="flex flex-col min-h-full bg-background">
 
       {/* ── Sticky header ───────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 py-3 flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-            <Link href="/agenda" className="hover:text-foreground transition-colors">
-              Agenda
-            </Link>
-            <ChevronRight className="w-3 h-3 shrink-0" />
-            <span className="text-foreground font-medium">Novo Evento</span>
-          </nav>
-          <h1 className="text-base font-semibold leading-none">Novo Evento</h1>
-        </div>
+      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border px-4 md:px-6 h-14 flex items-center justify-between gap-4">
+        <h1 className="text-sm font-semibold">Novo Evento</h1>
 
         <div className="flex items-center gap-2 shrink-0">
           <Button
@@ -420,7 +410,7 @@ export default function NovoEventoPage() {
 
       {/* ── Form body ───────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-auto">
-        <div className="px-4 md:px-6 py-6 space-y-5 max-w-6xl">
+        <div className="px-4 md:px-6 py-6 space-y-5 max-w-6xl mx-auto w-full">
 
           {/* ── SECTION 1: Informações ─────────────────────────────────── */}
           <section className="rounded-xl border bg-card p-5 md:p-6 shadow-sm">
@@ -643,7 +633,7 @@ export default function NovoEventoPage() {
 
               {/* Tipo de negociação — full width */}
               <Field label="Tipo de negociação" className="col-span-full">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mt-0.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mt-0.5">
                   {NEGOTIATION_TYPES.map(n => {
                     const isActive = negotiationType === n.value
                     return (
@@ -816,11 +806,11 @@ export default function NovoEventoPage() {
           </section>
 
           {/* ── Footer ─────────────────────────────────────────────────── */}
-          <div className="flex items-center justify-between gap-3 pt-1 pb-6">
-            <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-1 pb-6">
+            <Button variant="ghost" onClick={() => router.back()} className="text-muted-foreground w-full sm:w-auto">
               ← Voltar
             </Button>
-            <Button onClick={handleSave} disabled={saving} className="gap-2 px-6">
+            <Button onClick={handleSave} disabled={saving} className="gap-2 px-6 w-full sm:w-auto">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'Salvando…' : 'Salvar Evento'}
             </Button>

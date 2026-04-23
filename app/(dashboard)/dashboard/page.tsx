@@ -1,11 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   startOfDay, endOfDay,
   startOfWeek, endOfWeek,
   startOfMonth, endOfMonth,
-  format, parseISO,
+  format,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -13,8 +13,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 import {
-  CalendarDays, DollarSign, TrendingUp, Music2,
+  CalendarDays, DollarSign, TrendingUp,
   MapPin, Users, Building2, Download, Plus, CheckCircle2,
+  Maximize2, Minimize2,
 } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
 import Link from 'next/link'
@@ -155,6 +156,22 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>('month')
   const [dateRange, setDateRange] = useState<DateRange | undefined>(getPresetRange('month'))
   const [artistFilter, setArtistFilter] = useState<string>('todos')
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
+  }
+
+  useEffect(() => {
+    function onFsChange() { setIsFullscreen(!!document.fullscreenElement) }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
 
   function handlePreset(p: Period) {
     setPeriod(p)
@@ -291,7 +308,11 @@ export default function DashboardPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div
+      ref={containerRef}
+      className="flex flex-col h-full min-h-0 bg-background"
+      style={isFullscreen ? { height: '100vh' } : undefined}
+    >
 
       {/* ── Controls bar ──────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2 px-4 md:px-6 py-2.5 border-b bg-background/95 backdrop-blur-sm shrink-0">
@@ -331,6 +352,9 @@ export default function DashboardPage() {
           <Button size="sm" variant="outline" onClick={handleExport} className="gap-1.5 h-8">
             <Download className="w-3.5 h-3.5" />
             Exportar
+          </Button>
+          <Button size="sm" variant="outline" onClick={toggleFullscreen} className="h-8 w-8 p-0" title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}>
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </Button>
         </div>
       </div>
@@ -397,8 +421,10 @@ export default function DashboardPage() {
               </div>
               <CardTitle className="text-sm font-semibold">Eventos no Brasil</CardTitle>
             </CardHeader>
-            <CardContent className="px-3 pb-3 pt-1">
-              <BrazilGeoMap showsByState={byState} primaryColor="#7c3aed" />
+            <CardContent className="px-3 pb-2 pt-0 flex justify-center">
+              <div className="w-full max-w-[260px]">
+                <BrazilGeoMap showsByState={byState} primaryColor="#7c3aed" />
+              </div>
             </CardContent>
           </Card>
 
