@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   Users, Link2, Copy, Check, RefreshCw, Loader2, Trash2,
-  ShieldCheck, UserCheck, Crown, Activity, Calendar,
+  ShieldCheck, UserCheck, Crown, Activity, Calendar, Send, Mail,
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -113,9 +113,11 @@ export default function EquipePage() {
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null)
 
   // Invite
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [sending, setSending] = useState(false)
   const [inviteLink, setInviteLink] = useState<string | null>(null)
-  const [generating, setGenerating] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [inviteSentTo, setInviteSentTo] = useState<string | null>(null)
 
   // Activity
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -157,26 +159,38 @@ export default function EquipePage() {
 
   useEffect(() => { loadMembers(); loadLogs() }, [loadMembers, loadLogs])
 
-  // ── Generate invite ──────────────────────────────────────────────────────
-  async function generateInvite() {
-    setGenerating(true)
+  // ── Send invite by email ─────────────────────────────────────────────────
+  async function sendInvite(e: React.FormEvent) {
+    e.preventDefault()
+    if (!inviteEmail.trim()) return
+    setSending(true)
+    setInviteLink(null)
+    setInviteSentTo(null)
     try {
-      const res = await fetch('/api/invites/create', {
+      const res = await fetch('/api/invites/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orgId }),
+        body: JSON.stringify({ email: inviteEmail.trim(), orgId }),
       })
       const data = await res.json()
       if (!res.ok) {
-        toast({ title: 'Erro ao gerar convite', description: data.error, variant: 'destructive' })
+        toast({ title: 'Erro ao enviar convite', description: data.error, variant: 'destructive' })
       } else {
-        setInviteLink(data.link)
+        if (data.emailSent) {
+          setInviteSentTo(inviteEmail.trim())
+          toast({ title: 'Convite enviado!', description: `E-mail enviado para ${inviteEmail.trim()}` })
+        } else {
+          // User already has an account — show link to share manually
+          setInviteLink(data.link)
+          toast({ title: 'Usuário já tem conta', description: 'Compartilhe o link abaixo com ele.' })
+        }
+        setInviteEmail('')
         loadLogs()
       }
     } catch {
       toast({ title: 'Erro de conexão', description: 'Tente novamente.', variant: 'destructive' })
     } finally {
-      setGenerating(false)
+      setSending(false)
     }
   }
 
@@ -249,42 +263,7 @@ export default function EquipePage() {
                 </span>
               )}
             </CardTitle>
-            {canManage && (
-              <div className="flex items-center gap-2">
-                {inviteLink ? (
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      readOnly
-                      value={inviteLink}
-                      className="h-8 w-52 text-xs font-mono bg-muted border-dashed"
-                    />
-                    <Button size="sm" variant="outline" className="h-8 gap-1.5 shrink-0" onClick={copyLink}>
-                      {copied
-                        ? <Check className="h-3.5 w-3.5 text-green-500" />
-                        : <Copy className="h-3.5 w-3.5" />}
-                      {copied ? 'Copiado!' : 'Copiar'}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 shrink-0"
-                      onClick={generateInvite}
-                      disabled={generating}
-                      title="Gerar novo link"
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 ${generating ? 'animate-spin' : ''}`} />
-                    </Button>
-                  </div>
-                ) : (
-                  <Button size="sm" variant="outline" onClick={generateInvite} disabled={generating} className="h-8 gap-1.5">
-                    {generating
-                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      : <Link2 className="h-3.5 w-3.5" />}
-                    Convidar membro
-                  </Button>
-                )}
-              </div>
-            )}
+            {canManage && null}
           </div>
         </CardHeader>
 
@@ -390,11 +369,54 @@ export default function EquipePage() {
             </div>
           )}
 
-          {/* Invite link helper text */}
-          {canManage && !inviteLink && (
-            <p className="mt-3 text-xs text-muted-foreground border-t border-border pt-3">
-              O link de convite expira em 7 dias e só pode ser usado uma vez.
-            </p>
+          {/* Invite by email form */}
+          {canManage && (
+            <div className="mt-4 pt-4 border-t border-border space-y-3">
+              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5" />
+                Convidar por e-mail
+              </p>
+              <form onSubmit={sendInvite} className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  className="flex-1 h-8 text-sm"
+                  required
+                />
+                <Button type="submit" size="sm" className="h-8 gap-1.5 shrink-0" disabled={sending}>
+                  {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  Enviar
+                </Button>
+              </form>
+
+              {inviteSentTo && (
+                <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                  <Check className="h-3.5 w-3.5" />
+                  Convite enviado para {inviteSentTo}
+                </p>
+              )}
+
+              {inviteLink && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">
+                    Este usuário já tem conta — compartilhe o link abaixo:
+                  </p>
+                  <div className="flex gap-2">
+                    <Input readOnly value={inviteLink} className="flex-1 h-8 text-xs font-mono bg-muted" />
+                    <Button size="sm" variant="outline" className="h-8 gap-1.5 shrink-0" onClick={copyLink}>
+                      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied ? 'Copiado!' : 'Copiar'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-muted-foreground/60">
+                O convite expira em 7 dias e é de uso único.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>

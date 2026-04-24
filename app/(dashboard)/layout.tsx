@@ -12,11 +12,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* Desktop sidebar */}
         <div className="hidden md:flex md:w-60 md:flex-col shrink-0">
           <Sidebar
+            orgId={session.orgId}
             orgName={session.orgName}
             userName={session.userName}
             userEmail={session.userEmail}
             userRole={session.userRole}
             userAvatar={session.userAvatar}
+            allOrgs={session.allOrgs}
           />
         </div>
 

@@ -1,37 +1,45 @@
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 
-/**
- * Cached per-request: retorna usuário + org sem repetir chamadas ao Supabase
- * dentro do mesmo ciclo de renderização (layout + páginas filhas).
- */
 export const getSession = cache(async () => {
   const supabase = await createClient()
-
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any
-  const { data: member } = await sb
+
+  const { data: memberships } = await sb
     .from('organization_members')
     .select('org_id, role, organizations(id, name)')
     .eq('user_id', user.id)
-    .single()
+    .order('created_at', { ascending: true })
 
-  if (!member) redirect('/onboarding')
+  if (!memberships || memberships.length === 0) redirect('/onboarding')
 
-  const org = member.organizations as { id: string; name: string } | null
+  // Pick current org from cookie, fall back to first
+  const cookieStore = await cookies()
+  const savedOrgId = cookieStore.get('showdeck_org')?.value
+  const current = memberships.find((m: any) => m.org_id === savedOrgId) ?? memberships[0]
+  const currentOrg = current.organizations as { id: string; name: string } | null
+
+  const allOrgs = memberships.map((m: any) => ({
+    id: m.org_id as string,
+    name: (m.organizations?.name as string) ?? 'Organização',
+    role: (m.role ?? 'member') as 'owner' | 'admin' | 'member',
+  }))
 
   return {
     user,
-    orgId: member.org_id,
-    userRole: (member.role ?? 'member') as 'owner' | 'admin' | 'member',
-    orgName: org?.name ?? 'Minha Organização',
-    userName: user.user_metadata?.full_name ?? '',
+    userId: user.id,
+    orgId: current.org_id as string,
+    userRole: (current.role ?? 'member') as 'owner' | 'admin' | 'member',
+    orgName: currentOrg?.name ?? 'Minha Organização',
+    userName: (user.user_metadata?.full_name as string) ?? '',
     userEmail: user.email ?? '',
     userAvatar: (user.user_metadata?.avatar_url as string | undefined) ?? null,
-    userId: user.id,
+    allOrgs,
   }
 })

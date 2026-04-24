@@ -2,6 +2,12 @@
 
 import { createContext, useContext } from 'react'
 
+export type OrgEntry = {
+  id: string
+  name: string
+  role: 'owner' | 'admin' | 'member'
+}
+
 export type SessionData = {
   orgId: string
   userId: string
@@ -10,6 +16,7 @@ export type SessionData = {
   userName: string
   userEmail: string
   userAvatar: string | null
+  allOrgs: OrgEntry[]
 }
 
 const SessionCtx = createContext<SessionData | null>(null)
