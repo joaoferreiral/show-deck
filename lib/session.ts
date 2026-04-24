@@ -17,7 +17,6 @@ export const getSession = cache(async () => {
     .from('organization_members')
     .select('org_id, role, organizations(id, name)')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
 
   if (membershipsError) {
     console.error('[session] memberships query error:', membershipsError.message)

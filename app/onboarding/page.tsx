@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,7 +26,6 @@ export default function OnboardingPage() {
   const [pendingInvite, setPendingInvite] = useState<PendingInvite | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [acceptingInvite, setAcceptingInvite] = useState(false)
-  const router = useRouter()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -63,8 +61,7 @@ export default function OnboardingPage() {
         toast({ title: 'Erro ao entrar na organização', description: data.error, variant: 'destructive' })
         return
       }
-      router.push('/dashboard')
-      router.refresh()
+      window.location.href = '/dashboard'
     } catch {
       toast({ title: 'Erro ao entrar na organização', variant: 'destructive' })
     } finally {
@@ -88,8 +85,9 @@ export default function OnboardingPage() {
         toast({ title: 'Erro ao criar organização', description: data.error, variant: 'destructive' })
         return
       }
-      router.push('/dashboard')
-      router.refresh()
+      // Full page reload to clear all Next.js router cache and ensure
+      // getSession() picks up the newly created membership
+      window.location.href = '/dashboard'
     } catch {
       toast({ title: 'Erro ao criar organização', variant: 'destructive' })
     } finally {
