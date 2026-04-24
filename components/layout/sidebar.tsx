@@ -14,6 +14,7 @@ import {
   Settings,
   LogOut,
   Music2,
+  Users,
 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -104,9 +105,10 @@ interface SidebarProps {
   orgName: string
   userName: string
   userEmail: string
+  userRole?: 'owner' | 'admin' | 'member'
 }
 
-export function Sidebar({ orgName, userName, userEmail }: SidebarProps) {
+export function Sidebar({ orgName, userName, userEmail, userRole = 'member' }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -147,6 +149,18 @@ export function Sidebar({ orgName, userName, userEmail }: SidebarProps) {
             </div>
           </div>
         ))}
+
+        {/* Admin-only section */}
+        {(userRole === 'owner' || userRole === 'admin') && (
+          <div>
+            <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+              Administração
+            </p>
+            <div className="space-y-0.5">
+              <NavItem href="/equipe" label="Equipe" icon={Users} />
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* ── Bottom ── */}

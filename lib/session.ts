@@ -16,7 +16,7 @@ export const getSession = cache(async () => {
   const sb = supabase as any
   const { data: member } = await sb
     .from('organization_members')
-    .select('org_id, organizations(id, name)')
+    .select('org_id, role, organizations(id, name)')
     .eq('user_id', user.id)
     .single()
 
@@ -27,6 +27,7 @@ export const getSession = cache(async () => {
   return {
     user,
     orgId: member.org_id,
+    userRole: (member.role ?? 'member') as 'owner' | 'admin' | 'member',
     orgName: org?.name ?? 'Minha Organização',
     userName: user.user_metadata?.full_name ?? '',
     userEmail: user.email ?? '',

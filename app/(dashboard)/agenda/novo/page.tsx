@@ -372,6 +372,12 @@ export default function NovoEventoPage() {
       qc.invalidateQueries({ queryKey: ['shows', orgId] })
       qc.invalidateQueries({ queryKey: ['calendar-shows', orgId] })
       qc.invalidateQueries({ queryKey: ['dashboard-analytics', orgId] })
+      // Log activity (fire-and-forget)
+      fetch('/api/org/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'show.created', entityType: 'show', entityId: data?.id, entityName: eventName }),
+      }).catch(() => {})
       router.push(data?.id ? `/agenda/${data.id}` : '/agenda')
     }
     setSaving(false)

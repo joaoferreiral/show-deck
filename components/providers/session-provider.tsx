@@ -4,6 +4,7 @@ import { createContext, useContext } from 'react'
 
 export type SessionData = {
   orgId: string
+  userRole: 'owner' | 'admin' | 'member'
   orgName: string
   userName: string
   userEmail: string
