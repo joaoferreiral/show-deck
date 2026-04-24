@@ -146,7 +146,7 @@ export default function ConfiguracoesPage() {
         toast({ title: 'Erro ao excluir organização', description: data.error, variant: 'destructive' })
         return
       }
-      window.location.href = '/onboarding'
+      window.location.href = '/org-select'
     } catch {
       toast({ title: 'Erro ao excluir organização', variant: 'destructive' })
     } finally {

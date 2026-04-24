@@ -61,7 +61,7 @@ export default function OnboardingPage() {
         toast({ title: 'Erro ao entrar na organização', description: data.error, variant: 'destructive' })
         return
       }
-      window.location.href = '/dashboard'
+      window.location.href = '/org-select'
     } catch {
       toast({ title: 'Erro ao entrar na organização', variant: 'destructive' })
     } finally {
@@ -87,7 +87,7 @@ export default function OnboardingPage() {
       }
       // Full page reload to clear all Next.js router cache and ensure
       // getSession() picks up the newly created membership
-      window.location.href = '/dashboard'
+      window.location.href = '/org-select'
     } catch {
       toast({ title: 'Erro ao criar organização', variant: 'destructive' })
     } finally {
