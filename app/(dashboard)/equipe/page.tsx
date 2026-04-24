@@ -123,18 +123,28 @@ export default function EquipePage() {
 
   const loadMembers = useCallback(async () => {
     setMembersLoading(true)
-    const res = await fetch('/api/org/members')
-    const data = await res.json()
-    setMembers(data.members ?? [])
-    setMembersLoading(false)
+    try {
+      const res = await fetch('/api/org/members')
+      const data = await res.json()
+      if (res.ok) setMembers(data.members ?? [])
+    } catch {
+      // silently ignore — UI shows empty state
+    } finally {
+      setMembersLoading(false)
+    }
   }, [])
 
   const loadLogs = useCallback(async () => {
     setLogsLoading(true)
-    const res = await fetch('/api/org/activity?limit=30')
-    const data = await res.json()
-    setLogs(data.logs ?? [])
-    setLogsLoading(false)
+    try {
+      const res = await fetch('/api/org/activity?limit=30')
+      const data = await res.json()
+      if (res.ok) setLogs(data.logs ?? [])
+    } catch {
+      // silently ignore — UI shows empty state
+    } finally {
+      setLogsLoading(false)
+    }
   }, [])
 
   useEffect(() => { loadMembers(); loadLogs() }, [loadMembers, loadLogs])
@@ -142,20 +152,24 @@ export default function EquipePage() {
   // ── Generate invite ──────────────────────────────────────────────────────
   async function generateInvite() {
     setGenerating(true)
-    const res = await fetch('/api/invites/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ orgId }),
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      toast({ title: 'Erro', description: data.error, variant: 'destructive' })
-    } else {
-      setInviteLink(data.link)
-      // Reload logs to show the invite.created entry
-      loadLogs()
+    try {
+      const res = await fetch('/api/invites/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Erro ao gerar convite', description: data.error, variant: 'destructive' })
+      } else {
+        setInviteLink(data.link)
+        loadLogs()
+      }
+    } catch {
+      toast({ title: 'Erro de conexão', description: 'Tente novamente.', variant: 'destructive' })
+    } finally {
+      setGenerating(false)
     }
-    setGenerating(false)
   }
 
   async function copyLink() {
