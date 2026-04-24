@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/service'
 
-export async function GET() {
+export async function GET(req: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ token: null })
@@ -28,5 +28,10 @@ export async function GET() {
     .limit(1)
     .maybeSingle()
 
-  return NextResponse.json({ token: invite?.token ?? null })
+  if (!invite) return NextResponse.json({ token: null, link: null })
+
+  const origin = new URL(req.url).origin
+  const link = `${origin}/join?token=${invite.token}`
+
+  return NextResponse.json({ token: invite.token, link })
 }

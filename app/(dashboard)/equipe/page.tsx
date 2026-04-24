@@ -151,9 +151,7 @@ export default function EquipePage() {
   useEffect(() => {
     fetch('/api/invites/current')
       .then(r => r.json())
-      .then(d => {
-        if (d.token) setInviteLink(`${window.location.origin}/join?token=${d.token}`)
-      })
+      .then(d => { if (d.link) setInviteLink(d.link) })
       .catch(() => {})
   }, [])
 
@@ -172,7 +170,7 @@ export default function EquipePage() {
       if (!res.ok) {
         toast({ title: 'Erro ao gerar convite', description: data.error, variant: 'destructive' })
       } else {
-        setInviteLink(`${window.location.origin}/join?token=${data.token}`)
+        setInviteLink(data.link)
         loadLogs()
       }
     } catch {

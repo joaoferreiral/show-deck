@@ -37,5 +37,8 @@ export async function POST(req: Request) {
 
   await logActivity({ orgId, userId: user.id, action: 'invite.created' })
 
-  return NextResponse.json({ token: invite.token })
+  const origin = new URL(req.url).origin
+  const link = `${origin}/join?token=${invite.token}`
+
+  return NextResponse.json({ token: invite.token, link })
 }
