@@ -12,8 +12,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {
   Save, Loader2, Sun, Moon, Monitor, LogOut, Shield,
-  Building2, Camera, Check,
+  Building2, Camera, Check, Trash2, TriangleAlert,
 } from 'lucide-react'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { initials } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
@@ -60,6 +64,7 @@ export default function ConfiguracoesPage() {
   const [orgNameVal, setOrgNameVal] = useState(orgName)
   const [savingOrg, setSavingOrg]   = useState(false)
   const [orgSaved, setOrgSaved]     = useState(false)
+  const [deletingOrg, setDeletingOrg] = useState(false)
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -125,6 +130,28 @@ export default function ConfiguracoesPage() {
       toast({ title: 'Nome da organização atualizado!' })
     }
     setSavingOrg(false)
+  }
+
+  // ── Delete org ────────────────────────────────────────────────────────────
+  async function handleDeleteOrg() {
+    setDeletingOrg(true)
+    try {
+      const res = await fetch('/api/org/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orgId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Erro ao excluir organização', description: data.error, variant: 'destructive' })
+        return
+      }
+      window.location.href = '/onboarding'
+    } catch {
+      toast({ title: 'Erro ao excluir organização', variant: 'destructive' })
+    } finally {
+      setDeletingOrg(false)
+    }
   }
 
   async function handleLogout() {
@@ -326,6 +353,68 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       </Section>
+
+      {/* ── Zona de perigo (owner only) ─────────────────────────────────────── */}
+      {userRole === 'owner' && (
+        <Section>
+          <SectionHeader icon={TriangleAlert} title="Zona de perigo" />
+          <div className="p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-destructive">Excluir organização</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Remove permanentemente a organização e todos os seus dados. Essa ação não pode ser desfeita.
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/5 hover:border-destructive/50 hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Excluir
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <TriangleAlert className="h-5 w-5 text-destructive" />
+                      Excluir &quot;{orgName}&quot;?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <p>Esta ação é <strong className="text-foreground">permanente e irreversível</strong>. Todos os dados serão excluídos:</p>
+                        <ul className="list-disc list-inside space-y-1 text-xs">
+                          <li>Todos os shows e agenda</li>
+                          <li>Todos os membros da equipe</li>
+                          <li>Todos os convites pendentes</li>
+                          <li>Todo o histórico de atividades</li>
+                        </ul>
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteOrg}
+                      disabled={deletingOrg}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-1.5"
+                    >
+                      {deletingOrg
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <Trash2 className="h-3.5 w-3.5" />
+                      }
+                      {deletingOrg ? 'Excluindo...' : 'Sim, excluir tudo'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+        </Section>
+      )}
 
       <p className="text-center text-[11px] text-muted-foreground/50 pb-2">
         ShowDeck v0.1 · Feito com ♥ para produtoras musicais

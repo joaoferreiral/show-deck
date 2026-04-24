@@ -26,7 +26,16 @@ export async function POST(req: Request) {
 
   const token = crypto.randomBytes(24).toString('base64url')
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
+
+  // Derive public origin: env var takes precedence, then forwarded headers (Vercel proxy),
+  // then fallback to the raw request URL (local dev).
+  const forwardedHost = req.headers.get('x-forwarded-host')
+  const forwardedProto = req.headers.get('x-forwarded-proto') ?? 'https'
+  const derivedOrigin = forwardedHost
+    ? `${forwardedProto}://${forwardedHost}`
+    : new URL(req.url).origin
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? derivedOrigin
+
   const joinUrl = `${origin}/join?token=${token}`
 
   // Save invite
