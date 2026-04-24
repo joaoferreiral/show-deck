@@ -77,56 +77,63 @@ export function NewArtistDialog({ open, onOpenChange, orgId }: NewArtistDialogPr
     if (!name.trim()) return
     setLoading(true)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabase = createClient() as any
-
-    // Upload photo if provided
-    let photoUrl: string | null = null
-    if (photo) {
-      const ext = photo.name.split('.').pop() ?? 'jpg'
-      const fileName = `${orgId}/${Date.now()}.${ext}`
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('artist-photos')
-        .upload(fileName, photo, { upsert: true })
-
-      if (uploadError) {
-        // Non-fatal: proceed without photo, warn user
-        toast({
-          title: 'Aviso: foto não enviada',
-          description: 'Verifique se o bucket "artist-photos" foi criado no Supabase Storage.',
-          variant: 'destructive',
-        })
-      } else if (uploadData) {
-        const { data: { publicUrl } } = supabase.storage
+    try {
+      // Upload photo via browser storage client (public bucket, no RLS issue)
+      let photoUrl: string | null = null
+      if (photo) {
+        const supabase = createClient() as any
+        const ext = photo.name.split('.').pop() ?? 'jpg'
+        const fileName = `${orgId}/${Date.now()}.${ext}`
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('artist-photos')
-          .getPublicUrl(uploadData.path)
-        photoUrl = publicUrl
+          .upload(fileName, photo, { upsert: true })
+
+        if (uploadError) {
+          toast({
+            title: 'Aviso: foto não enviada',
+            description: 'Verifique se o bucket "artist-photos" existe no Supabase Storage.',
+            variant: 'destructive',
+          })
+        } else if (uploadData) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('artist-photos')
+            .getPublicUrl(uploadData.path)
+          photoUrl = publicUrl
+        }
       }
-    }
 
-    const { error } = await supabase.from('artists').insert({
-      org_id: orgId,
-      name: name.trim(),
-      slug: `${slugify(name)}-${Date.now()}`,
-      bio: bio.trim() || null,
-      base_city: city || null,
-      base_state: state || null,
-      color,
-      photo_url: photoUrl,
-      active: true,
-      social_links: {},
-      contact: {},
-    })
+      // Create artist via API route (uses service client, bypasses RLS)
+      const res = await fetch('/api/artists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          slug: `${slugify(name)}-${Date.now()}`,
+          bio: bio.trim() || null,
+          base_city: city || null,
+          base_state: state || null,
+          color,
+          photo_url: photoUrl,
+          social_links: {},
+          contact: {},
+        }),
+      })
 
-    if (error) {
-      toast({ title: 'Erro ao cadastrar artista', description: error.message, variant: 'destructive' })
-    } else {
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Erro ao cadastrar artista', description: data.error, variant: 'destructive' })
+        return
+      }
+
       toast({ title: 'Artista cadastrado!', description: `${name} foi adicionado(a).` })
       queryClient.invalidateQueries({ queryKey: ['artists', orgId] })
       onOpenChange(false)
       resetForm()
+    } catch {
+      toast({ title: 'Erro ao cadastrar artista', variant: 'destructive' })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

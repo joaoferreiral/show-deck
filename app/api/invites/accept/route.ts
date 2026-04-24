@@ -35,12 +35,16 @@ export async function POST(req: Request) {
     .maybeSingle()
 
   if (!existing) {
+    // Validate role against known enum values; fall back to 'member'
+    const VALID_ROLES = ['owner', 'admin', 'member']
+    const safeRole = VALID_ROLES.includes(invite.role) ? invite.role : 'member'
+
     const { error: memberError } = await service
       .from('organization_members')
       .insert({
         org_id: invite.org_id,
         user_id: user.id,
-        role: invite.role,
+        role: safeRole,
         permissions: {},
       })
 
