@@ -147,6 +147,16 @@ export default function EquipePage() {
     }
   }, [])
 
+  // Load current active invite on mount
+  useEffect(() => {
+    fetch('/api/invites/current')
+      .then(r => r.json())
+      .then(d => {
+        if (d.token) setInviteLink(`${window.location.origin}/join?token=${d.token}`)
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => { loadMembers(); loadLogs() }, [loadMembers, loadLogs])
 
   // ── Generate invite ──────────────────────────────────────────────────────
@@ -162,7 +172,7 @@ export default function EquipePage() {
       if (!res.ok) {
         toast({ title: 'Erro ao gerar convite', description: data.error, variant: 'destructive' })
       } else {
-        setInviteLink(data.link)
+        setInviteLink(`${window.location.origin}/join?token=${data.token}`)
         loadLogs()
       }
     } catch {

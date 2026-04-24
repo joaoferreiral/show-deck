@@ -35,10 +35,7 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const link = `${baseUrl}/join?token=${invite.token}`
-
   await logActivity({ orgId, userId: user.id, action: 'invite.created' })
 
-  return NextResponse.json({ token: invite.token, link })
+  return NextResponse.json({ token: invite.token })
 }
