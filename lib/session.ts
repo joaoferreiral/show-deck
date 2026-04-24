@@ -31,5 +31,7 @@ export const getSession = cache(async () => {
     orgName: org?.name ?? 'Minha Organização',
     userName: user.user_metadata?.full_name ?? '',
     userEmail: user.email ?? '',
+    userAvatar: (user.user_metadata?.avatar_url as string | undefined) ?? null,
+    userId: user.id,
   }
 })

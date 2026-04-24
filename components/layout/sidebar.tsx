@@ -106,9 +106,10 @@ interface SidebarProps {
   userName: string
   userEmail: string
   userRole?: 'owner' | 'admin' | 'member'
+  userAvatar?: string | null
 }
 
-export function Sidebar({ orgName, userName, userEmail, userRole = 'member' }: SidebarProps) {
+export function Sidebar({ orgName, userName, userEmail, userRole = 'member', userAvatar }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -181,6 +182,7 @@ export function Sidebar({ orgName, userName, userEmail, userRole = 'member' }: S
         {/* User row */}
         <div className="flex items-center gap-2.5 px-3 py-2 rounded-md mt-1">
           <Avatar className="h-6 w-6 shrink-0">
+            {userAvatar && <AvatarImage src={userAvatar} alt={userName} className="object-cover" />}
             <AvatarFallback className="text-[10px] font-bold bg-primary/20 text-primary">
               {initials(userName || userEmail)}
             </AvatarFallback>

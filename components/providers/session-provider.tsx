@@ -4,10 +4,12 @@ import { createContext, useContext } from 'react'
 
 export type SessionData = {
   orgId: string
+  userId: string
   userRole: 'owner' | 'admin' | 'member'
   orgName: string
   userName: string
   userEmail: string
+  userAvatar: string | null
 }
 
 const SessionCtx = createContext<SessionData | null>(null)
