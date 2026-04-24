@@ -30,7 +30,7 @@ export async function GET(req: Request) {
 
   if (!invite) return NextResponse.json({ token: null, link: null })
 
-  const origin = new URL(req.url).origin
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
   const link = `${origin}/join?token=${invite.token}`
 
   return NextResponse.json({ token: invite.token, link })
