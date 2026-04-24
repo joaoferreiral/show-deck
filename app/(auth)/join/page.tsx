@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -14,7 +14,7 @@ import { Loader2, XCircle, Building2, Mail } from 'lucide-react'
 
 type InviteInfo = { orgName: string; orgId: string; role: string }
 
-export default function JoinPage() {
+function JoinContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token') ?? ''
   const router = useRouter()
@@ -329,5 +329,17 @@ export default function JoinPage() {
         )}
       </CardContent>
     </Card>
+  )
+}
+
+export default function JoinPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-12">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    }>
+      <JoinContent />
+    </Suspense>
   )
 }
