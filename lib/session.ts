@@ -2,20 +2,26 @@ import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 
 export const getSession = cache(async () => {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Use service client to bypass RLS on organization_members
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sb = supabase as any
+  const sb = createServiceClient() as any
 
-  const { data: memberships } = await sb
+  const { data: memberships, error: membershipsError } = await sb
     .from('organization_members')
     .select('org_id, role, organizations(id, name)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
+
+  if (membershipsError) {
+    console.error('[session] memberships query error:', membershipsError.message)
+  }
 
   if (!memberships || memberships.length === 0) redirect('/onboarding')
 

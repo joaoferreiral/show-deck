@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast'
 import { Loader2, Music2, Building2, ChevronDown, Plus, Check } from 'lucide-react'
 import { BRAZILIAN_STATES } from '@/types'
-import { slugify } from '@/lib/utils'
 
 interface PendingInvite {
   token: string
@@ -79,48 +77,24 @@ export default function OnboardingPage() {
     if (!orgName.trim()) return
     setLoading(true)
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      router.push('/login')
-      return
-    }
-
-    const slug = slugify(orgName)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = supabase as any
-
-    const { data: org, error } = await sb
-      .from('organizations')
-      .insert({
-        name: orgName,
-        slug: `${slug}-${Date.now()}`,
-        owner_id: user.id,
-        base_city: city || null,
-        base_state: state || null,
-        plan: 'trial',
-        trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        settings: {},
+    try {
+      const res = await fetch('/api/org/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: orgName, city, state }),
       })
-      .select()
-      .single()
-
-    if (error) {
-      toast({ title: 'Erro ao criar organização', description: error.message, variant: 'destructive' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Erro ao criar organização', description: data.error, variant: 'destructive' })
+        return
+      }
+      router.push('/dashboard')
+      router.refresh()
+    } catch {
+      toast({ title: 'Erro ao criar organização', variant: 'destructive' })
+    } finally {
       setLoading(false)
-      return
     }
-
-    await sb.from('organization_members').insert({
-      org_id: org.id,
-      user_id: user.id,
-      role: 'owner',
-      permissions: {},
-    })
-
-    router.push('/dashboard')
-    router.refresh()
   }
 
   const roleLabel = (role: string) => {
