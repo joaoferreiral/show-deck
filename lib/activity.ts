@@ -9,6 +9,8 @@ export type ActivityAction =
   | 'member.joined'
   | 'member.removed'
   | 'member.role_changed'
+  | 'member.disabled'
+  | 'member.enabled'
   | 'invite.created'
 
 interface LogParams {
