@@ -34,21 +34,29 @@ function JoinContent() {
 
   useEffect(() => {
     async function init() {
-      if (!token) { setInviteError('Link de convite inválido.'); setLoading(false); return }
-
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      setCurrentUser(user)
-
-      const res = await fetch(`/api/invites/validate?token=${encodeURIComponent(token)}`)
-      const data = await res.json()
-
-      if (!res.ok) {
-        setInviteError(data.error ?? 'Link inválido ou expirado.')
-      } else {
-        setInvite(data)
+      if (!token) {
+        setInviteError('Link de convite inválido.')
+        setLoading(false)
+        return
       }
-      setLoading(false)
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        setCurrentUser(user)
+
+        const res = await fetch(`/api/invites/validate?token=${encodeURIComponent(token)}`)
+        const data = await res.json()
+
+        if (!res.ok) {
+          setInviteError(data.error ?? 'Link inválido ou expirado.')
+        } else {
+          setInvite(data)
+        }
+      } catch {
+        setInviteError('Erro ao verificar o convite. Tente novamente.')
+      } finally {
+        setLoading(false)
+      }
     }
     init()
   }, [token])
