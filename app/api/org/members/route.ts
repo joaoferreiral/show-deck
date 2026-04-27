@@ -37,9 +37,8 @@ export async function GET() {
 
   const { data: members, error } = await sb
     .from('organization_members')
-    .select('user_id, role, created_at, permissions')
+    .select('user_id, role, permissions')
     .eq('org_id', orgId)
-    .order('created_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -49,7 +48,6 @@ export async function GET() {
       return {
         userId: m.user_id,
         role: m.role,
-        createdAt: m.created_at,
         email: u?.email ?? m.user_id,
         name: u?.user_metadata?.full_name ?? null,
         isMe: m.user_id === user.id,
