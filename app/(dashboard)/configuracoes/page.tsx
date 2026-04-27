@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {
   Save, Loader2, Sun, Moon, Monitor, LogOut, Shield,
-  Building2, Camera, Check, Trash2, TriangleAlert,
+  Building2, Camera, Check, Trash2, TriangleAlert, DoorOpen,
 } from 'lucide-react'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -65,6 +65,7 @@ export default function ConfiguracoesPage() {
   const [savingOrg, setSavingOrg]   = useState(false)
   const [orgSaved, setOrgSaved]     = useState(false)
   const [deletingOrg, setDeletingOrg] = useState(false)
+  const [leavingOrg, setLeavingOrg]   = useState(false)
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -130,6 +131,24 @@ export default function ConfiguracoesPage() {
       toast({ title: 'Nome da organização atualizado!' })
     }
     setSavingOrg(false)
+  }
+
+  // ── Leave org ─────────────────────────────────────────────────────────────
+  async function handleLeaveOrg() {
+    setLeavingOrg(true)
+    try {
+      const res = await fetch('/api/org/members/leave', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Erro ao sair da organização', description: data.error, variant: 'destructive' })
+        return
+      }
+      window.location.href = '/org-select'
+    } catch {
+      toast({ title: 'Erro ao sair da organização', variant: 'destructive' })
+    } finally {
+      setLeavingOrg(false)
+    }
   }
 
   // ── Delete org ────────────────────────────────────────────────────────────
@@ -353,6 +372,60 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
       </Section>
+
+      {/* ── Sair da organização (non-owners only) ───────────────────────────── */}
+      {userRole !== 'owner' && (
+        <Section>
+          <SectionHeader icon={TriangleAlert} title="Zona de perigo" />
+          <div className="p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-destructive">Sair da organização</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Você perderá o acesso à <strong>{orgName}</strong> imediatamente. Só poderá voltar se for convidado novamente.
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/5 hover:border-destructive/50 hover:text-destructive"
+                  >
+                    <DoorOpen className="h-3.5 w-3.5" />
+                    Sair
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <DoorOpen className="h-5 w-5 text-destructive" />
+                      Sair de &quot;{orgName}&quot;?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Você perderá o acesso imediatamente e só poderá voltar se for convidado novamente pelo proprietário.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleLeaveOrg}
+                      disabled={leavingOrg}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-1.5"
+                    >
+                      {leavingOrg
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <DoorOpen className="h-3.5 w-3.5" />
+                      }
+                      {leavingOrg ? 'Saindo...' : 'Confirmar saída'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+        </Section>
+      )}
 
       {/* ── Zona de perigo (owner only) ─────────────────────────────────────── */}
       {userRole === 'owner' && (
