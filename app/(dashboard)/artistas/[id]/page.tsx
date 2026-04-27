@@ -95,11 +95,12 @@ export default function ArtistDetailPage() {
   async function handleSave() {
     if (!name.trim()) return
     setSaving(true)
-    const supabase = createClient() as any
 
     let photoUrl: string | null = data?.artist.photo_url ?? null
 
+    // Photo upload still uses browser storage client (public bucket, no RLS issue)
     if (photo) {
+      const supabase = createClient() as any
       const ext = photo.name.split('.').pop() ?? 'jpg'
       const fileName = `${orgId}/${artistId}-${Date.now()}.${ext}`
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -115,51 +116,55 @@ export default function ArtistDetailPage() {
       }
     }
 
-    const { error } = await supabase
-      .from('artists')
-      .update({
-        name: name.trim(),
-        slug: `${slugify(name)}-${artistId.slice(0, 8)}`,
-        bio: bio.trim() || null,
-        base_city: city || null,
-        base_state: state || null,
-        color,
-        active,
-        photo_url: photoUrl,
-        updated_at: new Date().toISOString(),
+    try {
+      const res = await fetch(`/api/artists/${artistId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          slug: `${slugify(name)}-${artistId.slice(0, 8)}`,
+          bio: bio.trim() || null,
+          base_city: city || null,
+          base_state: state || null,
+          color,
+          active,
+          photo_url: photoUrl,
+        }),
       })
-      .eq('id', artistId)
-      .eq('org_id', orgId)
-
-    if (error) {
-      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' })
-    } else {
-      toast({ title: 'Artista atualizado!' })
-      queryClient.invalidateQueries({ queryKey: ['artist', orgId, artistId] })
-      queryClient.invalidateQueries({ queryKey: ['artists', orgId] })
-      setEditing(false)
-      if (photoPreview) URL.revokeObjectURL(photoPreview)
-      setPhotoPreview(null)
+      const json = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Erro ao salvar', description: json.error, variant: 'destructive' })
+      } else {
+        toast({ title: 'Artista atualizado!' })
+        queryClient.invalidateQueries({ queryKey: ['artist', orgId, artistId] })
+        queryClient.invalidateQueries({ queryKey: ['artists', orgId] })
+        setEditing(false)
+        if (photoPreview) URL.revokeObjectURL(photoPreview)
+        setPhotoPreview(null)
+      }
+    } catch {
+      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   async function handleDelete() {
     setDeleting(true)
-    const supabase = createClient() as any
-    const { error } = await supabase
-      .from('artists')
-      .delete()
-      .eq('id', artistId)
-      .eq('org_id', orgId)
-
-    if (error) {
-      toast({ title: 'Erro ao deletar', description: error.message, variant: 'destructive' })
+    try {
+      const res = await fetch(`/api/artists/${artistId}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Erro ao deletar', description: json.error, variant: 'destructive' })
+        setDeleting(false)
+      } else {
+        toast({ title: 'Artista removido.' })
+        queryClient.invalidateQueries({ queryKey: ['artists', orgId] })
+        router.push('/artistas')
+      }
+    } catch {
+      toast({ title: 'Erro ao deletar', variant: 'destructive' })
       setDeleting(false)
-    } else {
-      toast({ title: 'Artista removido.' })
-      queryClient.invalidateQueries({ queryKey: ['artists', orgId] })
-      router.push('/artistas')
     }
   }
 

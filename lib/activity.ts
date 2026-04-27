@@ -5,6 +5,8 @@ export type ActivityAction =
   | 'show.updated'
   | 'show.deleted'
   | 'artist.created'
+  | 'artist.updated'
+  | 'artist.deleted'
   | 'contractor.created'
   | 'member.joined'
   | 'member.removed'

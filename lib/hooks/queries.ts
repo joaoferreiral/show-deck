@@ -320,27 +320,15 @@ export type ArtistShowRow = {
 export function useArtistDetail(orgId: string, artistId: string) {
   return useQuery({
     queryKey: ['artist', orgId, artistId],
+    enabled: !!orgId && !!artistId,
     queryFn: async () => {
-      const supabase = createClient() as any
-      const [artistRes, showsRes] = await Promise.all([
-        supabase
-          .from('artists')
-          .select('id, name, slug, photo_url, bio, color, base_city, base_state, active, social_links, created_at')
-          .eq('id', artistId)
-          .eq('org_id', orgId)
-          .single(),
-        supabase
-          .from('shows')
-          .select('id, title, status, start_at, city, state, venue_name, cache_value')
-          .eq('artist_id', artistId)
-          .eq('org_id', orgId)
-          .order('start_at', { ascending: false })
-          .limit(30),
-      ])
-      if (!artistRes.data) return null
+      const res = await fetch(`/api/artists/${artistId}`)
+      if (res.status === 404) return null
+      if (!res.ok) throw new Error('Falha ao carregar artista')
+      const { artist, shows } = await res.json()
       return {
-        artist: artistRes.data as ArtistDetail,
-        shows: (showsRes.data ?? []) as ArtistShowRow[],
+        artist: artist as ArtistDetail,
+        shows: (shows ?? []) as ArtistShowRow[],
       }
     },
     staleTime: 30 * 1000,
