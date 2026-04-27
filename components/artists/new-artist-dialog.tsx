@@ -126,7 +126,19 @@ export function NewArtistDialog({ open, onOpenChange, orgId }: NewArtistDialogPr
       }
 
       toast({ title: 'Artista cadastrado!', description: `${name} foi adicionado(a).` })
+
+      // Immediately inject the new artist into the cache so the list updates without waiting for a refetch
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryClient.setQueryData(['artists', orgId], (old: any) => {
+        const prev = old ?? { artists: [], countByArtist: {} }
+        const updated = [...(prev.artists ?? []), data.artist].sort((a: any, b: any) =>
+          a.name.localeCompare(b.name, 'pt-BR')
+        )
+        return { ...prev, artists: updated }
+      })
+      // Also invalidate so the list re-syncs from the server in the background
       queryClient.invalidateQueries({ queryKey: ['artists', orgId] })
+
       onOpenChange(false)
       resetForm()
     } catch {

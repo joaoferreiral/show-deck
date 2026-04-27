@@ -213,28 +213,10 @@ export function useArtists(orgId: string) {
     queryKey: ['artists', orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const supabase = createClient() as any
-      const [artists, showCounts] = await Promise.all([
-        supabase
-          .from('artists')
-          .select('id, name, photo_url, bio, color, base_city, base_state, active')
-          .eq('org_id', orgId)
-          .order('name'),
-        supabase
-          .from('shows')
-          .select('artist_id')
-          .eq('org_id', orgId)
-          .in('status', ['confirmado', 'contrato_enviado', 'contrato_assinado']),
-      ])
-
-      const countByArtist = ((showCounts.data ?? []) as { artist_id: string }[])
-        .reduce<Record<string, number>>((acc, s) => {
-          acc[s.artist_id] = (acc[s.artist_id] ?? 0) + 1
-          return acc
-        }, {})
-
-      return {
-        artists: (artists.data ?? []) as {
+      const res = await fetch('/api/artists')
+      if (!res.ok) throw new Error('Falha ao carregar artistas')
+      const { artists, shows } = await res.json() as {
+        artists: {
           id: string
           name: string
           photo_url: string | null
@@ -243,9 +225,16 @@ export function useArtists(orgId: string) {
           base_city: string | null
           base_state: string | null
           active: boolean
-        }[],
-        countByArtist,
+        }[]
+        shows: { artist_id: string }[]
       }
+
+      const countByArtist = (shows ?? []).reduce<Record<string, number>>((acc, s) => {
+        acc[s.artist_id] = (acc[s.artist_id] ?? 0) + 1
+        return acc
+      }, {})
+
+      return { artists: artists ?? [], countByArtist }
     },
     staleTime: 60 * 1000,
   })
