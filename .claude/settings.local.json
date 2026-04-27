@@ -23,7 +23,13 @@
       "Bash(node -e ' *)",
       "Bash(findstr -i \"time\\\\|clock\\\\|picker\")",
       "Bash(gh --version)",
-      "Bash(gh auth *)"
+      "Bash(gh auth *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(node -e \"const icons = require\\('lucide-react'\\); console.log\\('DoorOpen' in icons\\)\")",
+      "Bash(mkdir \"C:\\\\Users\\\\Joao\\\\OneDrive\\\\Desktop\\\\show-agendamento\\\\app\\\\api\\\\kanban\\\\columns\\\\[id]\")",
+      "Bash(mkdir \"C:\\\\Users\\\\Joao\\\\OneDrive\\\\Desktop\\\\show-agendamento\\\\app\\\\api\\\\kanban\\\\cards\\\\[id]\")"
     ]
   }
 }

@@ -7,7 +7,7 @@ import { initials } from '@/lib/utils'
 import {
   LayoutDashboard, CalendarDays, Calendar, TrendingUp,
   Mic2, Building2, Settings, LogOut, Music2, Users,
-  ChevronDown, Check, Plus,
+  ChevronDown, Check, Plus, KanbanSquare,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,7 @@ const NAV_SECTIONS = [
     items: [
       { href: '/agenda',     label: 'Agenda',      icon: CalendarDays },
       { href: '/calendario', label: 'Calendário',  icon: Calendar },
+      { href: '/kanban',     label: 'Quadro',      icon: KanbanSquare },
     ],
   },
   {
