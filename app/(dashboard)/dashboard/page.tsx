@@ -547,7 +547,7 @@ export default function DashboardPage() {
                         {/* Date badge */}
                         <div className={cn(
                           'flex flex-col items-center justify-center rounded-lg border w-10 h-10 shrink-0 text-center transition-colors',
-                          isThisMonth ? 'border-primary/30 bg-primary/8' : 'border-border bg-muted/40',
+                          isThisMonth ? 'border-primary/30 bg-primary/[0.08]' : 'border-border bg-muted/40',
                         )}>
                           <span className={cn('text-[10px] font-semibold uppercase leading-none', isThisMonth ? 'text-primary' : 'text-muted-foreground')}>
                             {format(date, 'MMM', { locale: ptBR })}

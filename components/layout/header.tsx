@@ -10,7 +10,7 @@ import { MobileDrawer } from './mobile-drawer'
 const PAGE_TITLES: Record<string, { label: string; description?: string }> = {
   '/dashboard':    { label: 'Dashboard',     description: 'Visão geral' },
   '/agenda':       { label: 'Agenda',        description: 'Shows e eventos' },
-  '/calendario':   { label: 'Calendário',    description: 'Visualização mensal' },
+  '/calendario':   { label: 'Calendário',    description: 'Ano, mês, semana e dia' },
   '/kanban':       { label: 'Quadro',        description: 'Kanban' },
   '/financeiro':   { label: 'Financeiro',    description: 'Em desenvolvimento' },
   '/artistas':     { label: 'Artistas',      description: 'Gestão de artistas' },

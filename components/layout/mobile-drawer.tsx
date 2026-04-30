@@ -275,7 +275,10 @@ export function MobileDrawer({ open, onClose }: Props) {
         </div>
 
         {/* ── Bottom actions — extra padding to clear the mobile bottom nav ── */}
-        <div className="border-t border-border px-4 pt-3 pb-24 space-y-1 shrink-0">
+        <div
+          className="border-t border-border px-4 pt-3 space-y-1 shrink-0"
+          style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
+        >
           {/* Theme toggle */}
           <button
             onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}

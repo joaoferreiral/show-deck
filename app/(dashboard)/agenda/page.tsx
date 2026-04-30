@@ -18,7 +18,7 @@ import {
 import { ptBR } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, FileDown,
-  CheckSquare, Square, MapPin, Clock,
+  CheckSquare, Square, MapPin, Clock, CalendarDays,
 } from 'lucide-react'
 import Link from 'next/link'
 import { NewShowButton } from '@/components/shows/new-show-button'
@@ -56,10 +56,12 @@ function FilterPanel({
   onClose: () => void
 }) {
   return (
-    <div
-      className="absolute left-0 top-full mt-1 z-50 w-58 rounded-xl border border-border bg-background shadow-xl p-3 space-y-3"
-      onMouseLeave={onClose}
-    >
+    <>
+      {/* Transparent backdrop — captures clicks outside the panel on all devices */}
+      <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden="true" />
+      <div
+        className="absolute left-0 top-full mt-1 z-50 w-60 rounded-xl border border-border bg-background shadow-xl p-3 space-y-3"
+      >
       <div>
         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-1">Status</p>
         {ALL_STATUSES.map((s) => {
@@ -86,7 +88,7 @@ function FilterPanel({
           <button
             key={p}
             type="button"
-            onClick={() => onPendencia(p)}
+            onClick={() => { onPendencia(p); onClose() }}
             className="flex items-center gap-2.5 w-full py-1.5 px-1 rounded-lg hover:bg-muted/60 transition-colors text-left"
           >
             {pendencia === p
@@ -97,6 +99,7 @@ function FilterPanel({
         ))}
       </div>
     </div>
+    </>
   )
 }
 
@@ -535,9 +538,22 @@ export default function AgendaPage() {
               })}
 
           {!showsLoading && filteredShows.length === 0 && (
-            <p className="py-16 text-center text-sm text-muted-foreground">
-              Nenhum show encontrado com os filtros atuais.
-            </p>
+            <div className="flex flex-col items-center justify-center gap-3 py-20 text-center select-none">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                <CalendarDays className="h-6 w-6 text-muted-foreground/50" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {activeFilters > 0 ? 'Nenhum show com esses filtros' : 'Nenhum show neste período'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {activeFilters > 0 ? 'Tente ajustar os filtros acima.' : 'Adicione um show para começar.'}
+                </p>
+              </div>
+              {activeFilters === 0 && (
+                <NewShowButton orgId={orgId} />
+              )}
+            </div>
           )}
         </div>
 

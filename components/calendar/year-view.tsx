@@ -222,8 +222,8 @@ export function YearView({ year, shows, onDayClick }: Props) {
         )}
       </div>
 
-      {/* 12 months grid — each cell is the same height via grid rows */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-fr gap-4 p-4 md:p-6">
+      {/* 12 months grid — each cell is the same height via grid rows; min ensures usable size on small screens */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 md:p-6" style={{ gridAutoRows: 'minmax(260px, 1fr)' }}>
         {months.map((monthDate) => (
           <MiniMonth
             key={monthDate.getMonth()}

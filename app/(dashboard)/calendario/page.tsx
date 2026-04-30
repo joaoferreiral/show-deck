@@ -156,6 +156,7 @@ export default function CalendarioPage() {
           className="h-8 w-8 shrink-0"
           onClick={toggleFullscreen}
           title={isFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+          aria-label={isFullscreen ? 'Sair da tela cheia' : 'Entrar em tela cheia'}
         >
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>

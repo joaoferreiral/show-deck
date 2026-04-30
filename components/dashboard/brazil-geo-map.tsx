@@ -263,6 +263,7 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
             disabled={zoom >= MAX_ZOOM}
             className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background/85 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
             title="Aproximar"
+            aria-label="Aproximar mapa"
           >
             <ZoomIn className="h-3.5 w-3.5" />
           </button>
@@ -271,6 +272,7 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
             disabled={zoom <= MIN_ZOOM}
             className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background/85 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
             title="Afastar"
+            aria-label="Afastar mapa"
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
@@ -279,6 +281,7 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
               onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }) }}
               className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background/85 backdrop-blur-sm text-[9px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shadow-sm"
               title="Resetar zoom"
+              aria-label="Resetar zoom do mapa"
             >
               1×
             </button>
