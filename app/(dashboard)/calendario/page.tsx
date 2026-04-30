@@ -7,43 +7,49 @@ import { Button } from '@/components/ui/button'
 import { MonthView } from '@/components/calendar/month-view'
 import { WeekView } from '@/components/calendar/week-view'
 import { DayView } from '@/components/calendar/day-view'
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, LayoutGrid, CalendarDays, AlignJustify } from 'lucide-react'
+import { YearView } from '@/components/calendar/year-view'
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, LayoutGrid, CalendarDays, AlignJustify, CalendarRange } from 'lucide-react'
 import {
   format,
   startOfMonth, endOfMonth,
   startOfWeek, endOfWeek,
   startOfDay, endOfDay,
+  startOfYear, endOfYear,
   addMonths, subMonths,
   addWeeks, subWeeks,
   addDays, subDays,
+  addYears, subYears,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-type CalendarView = 'month' | 'week' | 'day'
+type CalendarView = 'year' | 'month' | 'week' | 'day'
 
 const VIEWS: { v: CalendarView; icon: React.ElementType; label: string }[] = [
-  { v: 'month', icon: LayoutGrid, label: 'Mês' },
-  { v: 'week', icon: CalendarDays, label: 'Semana' },
-  { v: 'day', icon: AlignJustify, label: 'Dia' },
+  { v: 'year',  icon: CalendarRange, label: 'Ano'     },
+  { v: 'month', icon: LayoutGrid,    label: 'Mês'     },
+  { v: 'week',  icon: CalendarDays,  label: 'Semana'  },
+  { v: 'day',   icon: AlignJustify,  label: 'Dia'     },
 ]
 
 export default function CalendarioPage() {
   const { orgId } = useSession()
-  const [view, setView] = useState<CalendarView>('month')
+  const [view, setView]               = useState<CalendarView>('year')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [isFullscreen, setIsFullscreen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // ─── Date range for query ─────────────────────────────────────────────────
   const from = (() => {
+    if (view === 'year')  return startOfYear(currentDate).toISOString()
     if (view === 'month') return startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 }).toISOString()
-    if (view === 'week') return startOfWeek(currentDate, { weekStartsOn: 0 }).toISOString()
+    if (view === 'week')  return startOfWeek(currentDate, { weekStartsOn: 0 }).toISOString()
     return startOfDay(currentDate).toISOString()
   })()
 
   const to = (() => {
+    if (view === 'year')  return endOfYear(currentDate).toISOString()
     if (view === 'month') return endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 }).toISOString()
-    if (view === 'week') return endOfWeek(currentDate, { weekStartsOn: 0 }).toISOString()
+    if (view === 'week')  return endOfWeek(currentDate, { weekStartsOn: 0 }).toISOString()
     return endOfDay(currentDate).toISOString()
   })()
 
@@ -66,26 +72,35 @@ export default function CalendarioPage() {
 
   // ─── Navigation ──────────────────────────────────────────────────────────
   function goNext() {
-    if (view === 'month') setCurrentDate((d) => addMonths(d, 1))
-    else if (view === 'week') setCurrentDate((d) => addWeeks(d, 1))
-    else setCurrentDate((d) => addDays(d, 1))
+    if (view === 'year')  setCurrentDate(d => addYears(d, 1))
+    else if (view === 'month') setCurrentDate(d => addMonths(d, 1))
+    else if (view === 'week')  setCurrentDate(d => addWeeks(d, 1))
+    else                       setCurrentDate(d => addDays(d, 1))
   }
   function goPrev() {
-    if (view === 'month') setCurrentDate((d) => subMonths(d, 1))
-    else if (view === 'week') setCurrentDate((d) => subWeeks(d, 1))
-    else setCurrentDate((d) => subDays(d, 1))
+    if (view === 'year')  setCurrentDate(d => subYears(d, 1))
+    else if (view === 'month') setCurrentDate(d => subMonths(d, 1))
+    else if (view === 'week')  setCurrentDate(d => subWeeks(d, 1))
+    else                       setCurrentDate(d => subDays(d, 1))
   }
 
   // ─── Header title ─────────────────────────────────────────────────────────
   const title = (() => {
+    if (view === 'year')  return format(currentDate, 'yyyy')
     if (view === 'month') return format(currentDate, 'MMMM yyyy', { locale: ptBR })
     if (view === 'week') {
       const start = startOfWeek(currentDate, { weekStartsOn: 0 })
-      const end = endOfWeek(currentDate, { weekStartsOn: 0 })
+      const end   = endOfWeek(currentDate,   { weekStartsOn: 0 })
       return `${format(start, "d 'de' MMM", { locale: ptBR })} – ${format(end, "d 'de' MMM yyyy", { locale: ptBR })}`
     }
     return format(currentDate, "EEEE, d 'de' MMMM yyyy", { locale: ptBR })
   })()
+
+  // When clicking a day in year view → go to day view
+  function handleYearDayClick(date: Date) {
+    setCurrentDate(date)
+    setView('day')
+  }
 
   return (
     <div
@@ -148,6 +163,13 @@ export default function CalendarioPage() {
 
       {/* ── Calendar body ────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-hidden">
+        {view === 'year' && (
+          <YearView
+            year={currentDate.getFullYear()}
+            shows={shows}
+            onDayClick={handleYearDayClick}
+          />
+        )}
         {view === 'month' && (
           <MonthView
             currentDate={currentDate}
