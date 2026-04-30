@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ZoomIn, ZoomOut } from 'lucide-react'
-import geojsonData from '../../public/brazil-states.geojson'
+import geojsonData from '../../public/brazil-states.json'
 
 // ── Projection ────────────────────────────────────────────────────────────────
 const MIN_LON = -75
