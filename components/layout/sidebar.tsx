@@ -7,8 +7,9 @@ import { initials } from '@/lib/utils'
 import {
   LayoutDashboard, CalendarDays, Calendar, TrendingUp,
   Mic2, Building2, Settings, LogOut, Music2, Users,
-  ChevronDown, Check, Plus, KanbanSquare,
+  ChevronDown, Check, Plus, KanbanSquare, UserCheck,
 } from 'lucide-react'
+import { useSession } from '@/components/providers/session-provider'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -44,12 +45,14 @@ const NAV_SECTIONS = [
   },
 ]
 
-const MOBILE_ITEMS = [
+const MOBILE_ITEMS_BASE = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/agenda',    label: 'Agenda',    icon: CalendarDays },
   { href: '/artistas',  label: 'Artistas',  icon: Mic2 },
-  { href: '/financeiro',label: 'Financeiro',icon: TrendingUp },
+  { href: '/kanban',    label: 'Quadro',    icon: KanbanSquare },
 ]
+
+const MOBILE_ITEM_EQUIPE = { href: '/equipe', label: 'Equipe', icon: UserCheck }
 
 // ─── Nav item ─────────────────────────────────────────────────────────────────
 
@@ -244,17 +247,28 @@ export function Sidebar({ orgName, orgId, userName, userEmail, userRole = 'membe
 
 export function BottomNav() {
   const pathname = usePathname()
+  const { userRole } = useSession()
+
+  const isAdminOrOwner = userRole === 'owner' || userRole === 'admin'
+  const mobileItems = isAdminOrOwner
+    ? [...MOBILE_ITEMS_BASE, MOBILE_ITEM_EQUIPE]
+    : MOBILE_ITEMS_BASE
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border"
-      style={{ backgroundColor: 'hsl(var(--sidebar))' }}>
-      {MOBILE_ITEMS.map(({ href, label, icon: Icon }) => {
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 flex md:hidden border-t border-border"
+      style={{
+        backgroundColor: 'hsl(var(--sidebar))',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
+    >
+      {mobileItems.map(({ href, label, icon: Icon }) => {
         const isActive = pathname === href || pathname.startsWith(href + '/')
         return (
           <Link
             key={href} href={href}
             className={cn(
-              'flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-xs font-medium transition-colors',
+              'flex flex-1 flex-col items-center justify-center gap-1.5 pt-2.5 pb-3 text-xs font-medium transition-colors',
               isActive ? 'text-primary' : 'text-muted-foreground',
             )}
           >

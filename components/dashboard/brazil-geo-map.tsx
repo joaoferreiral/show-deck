@@ -43,17 +43,19 @@ function centroid(geometry: any): [number, number] {
 
 // ── GeoJSON cache ─────────────────────────────────────────────────────────────
 let _geojson: any = null
-let _promise: Promise<any> | null = null
 
 async function loadGeoJson() {
   if (_geojson) return _geojson
-  if (!_promise) {
-    _promise = fetch('/brazil-states.geojson')
-      .then(r => r.json())
-      .then(d => { _geojson = d; _promise = null; return d })
-      .catch(() => { _promise = null; return null })
+  try {
+    const res = await fetch('/brazil-states.geojson')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    _geojson = data
+    return data
+  } catch (err) {
+    console.error('[BrazilGeoMap] failed to load geojson:', err)
+    return null
   }
-  return _promise
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -78,6 +80,7 @@ const ZOOM_STEP = 0.5
 // ── Component ─────────────────────────────────────────────────────────────────
 export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) {
   const [features, setFeatures] = useState<Feature[]>([])
+  const [loadError, setLoadError] = useState(false)
   const [hovered, setHovered] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
   const [zoom, setZoom] = useState(1)
@@ -101,8 +104,9 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
   const vbY = (H / 2) - vbH / 2 - cpy
 
   useEffect(() => {
+    setLoadError(false)
     loadGeoJson().then(data => {
-      if (!data) return
+      if (!data) { setLoadError(true); return }
       setFeatures(data.features.map((f: any) => ({
         properties: f.properties,
         geometry: f.geometry,
@@ -187,11 +191,23 @@ export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) 
 
   const maxCount = Math.max(1, ...Object.values(showsByState))
 
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-40 rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+        Mapa indisponível — recarregue a página
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-2">
 
-      {/* Map area — padding-bottom cria altura intrínseca; min() limita em desktop */}
-      <div ref={wrapRef} className="relative w-full overflow-hidden rounded-lg" style={{ paddingBottom: 'min(78%, 260px)' }}>
+      {/* Map area — aspect-ratio garante altura em todos os browsers */}
+      <div
+        ref={wrapRef}
+        className="relative w-full overflow-hidden rounded-lg"
+        style={{ aspectRatio: '460 / 420', maxHeight: '300px' }}
+      >
         <svg
           ref={svgRef}
           viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}

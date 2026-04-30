@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* Main content */}
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
-          <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+          <main className="flex-1 overflow-y-auto pb-20 md:pb-0" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
             {children}
           </main>
         </div>
