@@ -60,53 +60,53 @@
 
   .dark {
     /* ── Backgrounds ── */
-    --background: 24 10% 8%;           /* #151311 — deep warm dark        */
-    --foreground: 38 10% 88%;          /* #E1DDD7 — warm off-white        */
+    --background: 0 0% 9.4%;           /* #181818 — fundo preto           */
+    --foreground: 38 8% 88%;           /* #E2DDD8 — off-white quente      */
 
     /* ── Card / surface ── */
-    --card: 24 9% 11%;                 /* #1D1A17 — warm dark card        */
-    --card-foreground: 38 10% 88%;
+    --card: 0 0% 12.2%;                /* #1F1F1F — surface elevada       */
+    --card-foreground: 38 8% 88%;
 
     /* ── Popover ── */
-    --popover: 24 9% 11%;
-    --popover-foreground: 38 10% 88%;
+    --popover: 0 0% 12.2%;
+    --popover-foreground: 38 8% 88%;
 
     /* ── Sidebar ── */
-    --sidebar: 24 10% 7%;              /* #131110 — slightly darker       */
-    --sidebar-foreground: 38 10% 88%;
+    --sidebar: 0 0% 12.2%;             /* #1F1F1F — menu lateral          */
+    --sidebar-foreground: 38 8% 88%;
 
     /* ── Primary — near-white (inverted in dark) ── */
-    --primary: 38 10% 88%;             /* #E1DDD7 */
-    --primary-foreground: 24 10% 8%;   /* dark on white button            */
+    --primary: 38 8% 88%;              /* #E2DDD8 */
+    --primary-foreground: 0 0% 9.4%;   /* dark on white button            */
 
     /* ── Secondary ── */
-    --secondary: 24 8% 17%;            /* #2C2926 — warm dark hover       */
-    --secondary-foreground: 38 10% 80%;
+    --secondary: 0 0% 17%;             /* #2B2B2B — hover state           */
+    --secondary-foreground: 38 8% 82%;
 
     /* ── Muted ── */
-    --muted: 24 8% 16%;
-    --muted-foreground: 30 5% 50%;     /* same mid-gray both modes        */
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 50%;      /* #808080                         */
 
     /* ── Accent ── */
-    --accent: 24 8% 17%;
-    --accent-foreground: 38 10% 88%;
+    --accent: 0 0% 17%;
+    --accent-foreground: 38 8% 88%;
 
     /* ── Destructive ── */
     --destructive: 0 62% 42%;
     --destructive-foreground: 0 0% 98%;
 
     /* ── Border / Input / Ring ── */
-    --border: 24 7% 21%;               /* #363229 — subtle dark border    */
-    --input: 24 7% 21%;
-    --ring: 38 10% 75%;                /* soft warm ring in dark          */
+    --border: 0 0% 18%;                /* #2E2E2E — borda sutil           */
+    --input: 0 0% 18%;
+    --ring: 38 8% 75%;                 /* ring quase-branco               */
 
     /* ── Shadows ── */
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.5);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
 
-    /* ── Brand accent for maps / charts ── */
-    --brand: 38 10% 65%;               /* lighter warm tone on dark bg    */
+    /* ── Brand accent para mapas / charts ── */
+    --brand: 38 8% 65%;                /* tom claro visível no fundo dark  */
     --brand-hex: #B5AFA7;
   }
 }
