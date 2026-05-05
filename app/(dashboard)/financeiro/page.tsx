@@ -1,91 +1,791 @@
 'use client'
 
-import { TrendingUp, Receipt, PiggyBank, BarChart3, FileSpreadsheet, Wallet, ArrowRight } from 'lucide-react'
+import { useState, useMemo, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useSession } from '@/components/providers/session-provider'
+import { useFinanceiro, useArtists } from '@/lib/hooks/queries'
+import type { FinanceiroShow, ShowPayment } from '@/lib/hooks/queries'
+import { formatCurrency, formatDate, cn, initials } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useToast } from '@/components/ui/use-toast'
+import {
+  ChevronDown, ChevronRight,
+  CheckCircle2, Circle, AlertCircle, Clock,
+  Plus, Trash2, LayoutList, Users, TrendingUp,
+  DollarSign, AlertTriangle, Ban,
+} from 'lucide-react'
+import {
+  startOfYear, endOfYear, startOfMonth, endOfMonth,
+  addMonths, format, isAfter, isBefore, parseISO,
+} from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import Link from 'next/link'
 
-const FEATURES = [
-  {
-    icon: TrendingUp,
-    title: 'Fluxo de Caixa',
-    description: 'Visão completa de entradas e saídas por período, com projeções baseadas em shows confirmados.',
-  },
-  {
-    icon: Receipt,
-    title: 'Recebíveis e Cachês',
-    description: 'Controle de pagamentos por show: pendentes, parciais, recebidos e em atraso.',
-  },
-  {
-    icon: Wallet,
-    title: 'Despesas e Custos',
-    description: 'Registro de despesas por categoria (produção, transporte, hospedagem, rider técnico).',
-  },
-  {
-    icon: FileSpreadsheet,
-    title: 'Contratos Financeiros',
-    description: 'Gestão de cachê colocado, bilheteria, garantias e percentuais por tipo de negociação.',
-  },
-  {
-    icon: BarChart3,
-    title: 'Relatórios e Gráficos',
-    description: 'DRE simplificado, evolução de receita por artista, sazonalidade e comparativos.',
-  },
-  {
-    icon: PiggyBank,
-    title: 'Metas e Previsões',
-    description: 'Defina metas de faturamento por artista e acompanhe o progresso em tempo real.',
-  },
-]
+// ─── Payment status ───────────────────────────────────────────────────────────
 
-export default function FinanceiroPage() {
+type PaymentStatus = 'sem_plano' | 'pendente' | 'parcial' | 'atrasado' | 'pago'
+
+function getPaymentStatus(payments: ShowPayment[]): PaymentStatus {
+  if (!payments.length) return 'sem_plano'
+  const now = new Date()
+  const paid   = payments.filter(p => !!p.paid_at)
+  const unpaid = payments.filter(p => !p.paid_at)
+  if (!unpaid.length) return 'pago'
+  const overdue = unpaid.filter(p => isBefore(parseISO(p.due_date), now))
+  if (overdue.length) return 'atrasado'
+  if (paid.length)   return 'parcial'
+  return 'pendente'
+}
+
+const STATUS_CONFIG: Record<PaymentStatus, {
+  label: string
+  icon: React.ElementType
+  className: string
+}> = {
+  sem_plano: { label: 'Sem plano',  icon: Ban,          className: 'text-muted-foreground bg-muted'                },
+  pendente:  { label: 'Pendente',   icon: Clock,        className: 'text-blue-600 bg-blue-500/10 dark:text-blue-400' },
+  parcial:   { label: 'Parcial',    icon: AlertCircle,  className: 'text-amber-600 bg-amber-500/10 dark:text-amber-400' },
+  atrasado:  { label: 'Atrasado',   icon: AlertTriangle,className: 'text-destructive bg-destructive/10'             },
+  pago:      { label: 'Pago',       icon: CheckCircle2, className: 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400' },
+}
+
+// ─── Period helpers ───────────────────────────────────────────────────────────
+
+type Period = 'mes' | 'trimestre' | 'ano' | 'tudo'
+
+const PERIOD_LABELS: Record<Period, string> = {
+  mes:       'Este mês',
+  trimestre: 'Próx. 3 meses',
+  ano:       'Este ano',
+  tudo:      'Tudo',
+}
+
+function getPeriodRange(period: Period): { from?: string; to?: string } {
+  const now = new Date()
+  if (period === 'mes')
+    return { from: startOfMonth(now).toISOString(), to: endOfMonth(now).toISOString() }
+  if (period === 'trimestre')
+    return { from: now.toISOString(), to: endOfMonth(addMonths(now, 2)).toISOString() }
+  if (period === 'ano')
+    return { from: startOfYear(now).toISOString(), to: endOfYear(now).toISOString() }
+  return {}
+}
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+function KpiCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  icon: React.ElementType
+  label: string
+  value: string
+  sub?: string
+  accent?: string
+}) {
   return (
-    <div className="flex flex-col min-h-full items-center justify-center px-4 py-16">
-
-      {/* Badge */}
-      <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400 mb-8">
-        <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
-        </span>
-        Em Desenvolvimento
+    <div className="rounded-xl border border-border bg-card px-4 py-3.5 flex items-center gap-3">
+      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', accent ?? 'bg-muted')}>
+        <Icon className="h-4 w-4" />
       </div>
-
-      {/* Heading */}
-      <div className="text-center max-w-md mb-12">
-        <h1 className="text-3xl font-bold tracking-tight mb-3">Módulo Financeiro</h1>
-        <p className="text-muted-foreground text-sm leading-relaxed">
-          Estamos construindo uma gestão financeira completa para shows e artistas.
-          Em breve você terá controle total sobre cachês, recebíveis e despesas.
-        </p>
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground truncate">{label}</p>
+        <p className="text-base font-bold tabular-nums leading-tight">{value}</p>
+        {sub && <p className="text-[11px] text-muted-foreground leading-tight">{sub}</p>}
       </div>
+    </div>
+  )
+}
 
-      {/* Feature grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-3xl mb-12">
-        {FEATURES.map(({ icon: Icon, title, description }) => (
-          <div
-            key={title}
-            className="group relative rounded-xl border bg-card p-5 transition-colors hover:border-primary/30 hover:bg-primary/5"
+// ─── Add Payment Plan form (inline) ──────────────────────────────────────────
+
+function AddPaymentPlan({
+  show,
+  onClose,
+  onSaved,
+}: {
+  show: FinanceiroShow
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { toast } = useToast()
+  const [mode, setMode]               = useState<'integral' | 'parcelado'>('integral')
+  const [totalAmount, setTotalAmount] = useState(String(show.cache_value || ''))
+  const [numParcelas, setNumParcelas] = useState('2')
+  const [startDate, setStartDate]     = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [saving, setSaving]           = useState(false)
+
+  async function handleSave() {
+    const amount = parseFloat(totalAmount.replace(',', '.'))
+    if (!amount || amount <= 0) {
+      toast({ title: 'Valor inválido', description: 'Informe um valor maior que zero.', variant: 'destructive' })
+      return
+    }
+
+    let installments: { amount: number; due_date: string; description?: string }[] = []
+
+    if (mode === 'integral') {
+      installments = [{ amount, due_date: startDate }]
+    } else {
+      const n = Math.max(2, parseInt(numParcelas, 10) || 2)
+      const perParcela = Math.round((amount / n) * 100) / 100
+      const base = parseISO(startDate)
+      installments = Array.from({ length: n }, (_, i) => ({
+        amount: i === n - 1 ? Math.round((amount - perParcela * (n - 1)) * 100) / 100 : perParcela,
+        due_date: format(addMonths(base, i), 'yyyy-MM-dd'),
+        description: `Parcela ${i + 1}/${n}`,
+      }))
+    }
+
+    setSaving(true)
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ show_id: show.id, installments }),
+      })
+      if (!res.ok) throw new Error('Erro ao salvar')
+      toast({ title: 'Plano criado', description: `${installments.length} parcela${installments.length > 1 ? 's' : ''} adicionada${installments.length > 1 ? 's' : ''}.` })
+      onSaved()
+      onClose()
+    } catch {
+      toast({ title: 'Erro', description: 'Não foi possível salvar o plano.', variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-2 mb-1 rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+      <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">Novo plano de pagamento</p>
+
+      {/* Mode toggle */}
+      <div className="flex gap-1.5">
+        {(['integral', 'parcelado'] as const).map(m => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={cn(
+              'px-3 py-1 rounded-md text-xs font-medium border transition-colors',
+              mode === m
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-background text-foreground border-border hover:bg-muted'
+            )}
           >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-                <Icon className="h-4 w-4 text-primary" />
-              </div>
-              <h3 className="text-sm font-semibold">{title}</h3>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
-
-            {/* Locked overlay hint */}
-            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-              <ArrowRight className="h-3.5 w-3.5 text-primary/50" />
-            </div>
-          </div>
+            {m === 'integral' ? 'À vista' : 'Parcelado'}
+          </button>
         ))}
       </div>
 
-      {/* Footer note */}
-      <p className="text-xs text-muted-foreground/60 text-center">
-        As funcionalidades financeiras estarão disponíveis em breve. <br />
-        Os dados de cachê inseridos nos shows já estão sendo registrados.
-      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Valor total (R$)</Label>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0,00"
+            value={totalAmount}
+            onChange={e => setTotalAmount(e.target.value)}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">{mode === 'integral' ? 'Data de vencimento' : 'Data da 1ª parcela'}</Label>
+          <Input
+            type="date"
+            value={startDate}
+            onChange={e => setStartDate(e.target.value)}
+            className="h-8 text-sm"
+          />
+        </div>
+        {mode === 'parcelado' && (
+          <div className="space-y-1">
+            <Label className="text-xs">Nº de parcelas</Label>
+            <Input
+              type="number"
+              min="2"
+              max="24"
+              value={numParcelas}
+              onChange={e => setNumParcelas(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
+      </div>
 
+      {mode === 'parcelado' && totalAmount && parseFloat(totalAmount) > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          {parseInt(numParcelas, 10) || 2}× de {formatCurrency((parseFloat(totalAmount.replace(',', '.')) || 0) / (parseInt(numParcelas, 10) || 2))}
+        </p>
+      )}
+
+      <div className="flex gap-2 pt-1">
+        <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 text-xs">
+          {saving ? 'Salvando…' : 'Salvar plano'}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClose} className="h-7 text-xs">
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Installment row ──────────────────────────────────────────────────────────
+
+function InstallmentRow({
+  payment,
+  onTogglePaid,
+  onDelete,
+}: {
+  payment: ShowPayment
+  onTogglePaid: (p: ShowPayment) => void
+  onDelete: (p: ShowPayment) => void
+}) {
+  const now      = new Date()
+  const isPaid   = !!payment.paid_at
+  const dueDate  = parseISO(payment.due_date)
+  const overdue  = !isPaid && isBefore(dueDate, now)
+
+  return (
+    <div className={cn(
+      'flex items-center gap-3 py-2 px-1 rounded-md group',
+      isPaid ? 'opacity-60' : ''
+    )}>
+      <button
+        onClick={() => onTogglePaid(payment)}
+        className="shrink-0 transition-colors"
+        aria-label={isPaid ? 'Desmarcar como pago' : 'Marcar como pago'}
+      >
+        {isPaid
+          ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          : overdue
+            ? <Circle className="h-4 w-4 text-destructive" />
+            : <Circle className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+        }
+      </button>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={cn(
+            'text-xs font-semibold tabular-nums',
+            isPaid ? 'line-through text-muted-foreground' : overdue ? 'text-destructive' : 'text-foreground'
+          )}>
+            {formatCurrency(payment.amount)}
+          </span>
+          {payment.description && (
+            <span className="text-[11px] text-muted-foreground truncate">{payment.description}</span>
+          )}
+        </div>
+        <p className={cn(
+          'text-[11px]',
+          isPaid ? 'text-muted-foreground/50' : overdue ? 'text-destructive/70' : 'text-muted-foreground'
+        )}>
+          {isPaid
+            ? `Pago em ${formatDate(payment.paid_at!)}`
+            : overdue
+              ? `Venceu ${formatDate(payment.due_date)}`
+              : `Vence ${formatDate(payment.due_date)}`
+          }
+        </p>
+      </div>
+
+      <button
+        onClick={() => onDelete(payment)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-1 rounded-md hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
+        aria-label="Remover parcela"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
+}
+
+// ─── Show row (expandable) ────────────────────────────────────────────────────
+
+function ShowRow({
+  show,
+  onDataChange,
+}: {
+  show: FinanceiroShow
+  onDataChange: () => void
+}) {
+  const [open, setOpen]           = useState(false)
+  const [addingPlan, setAddingPlan] = useState(false)
+  const { toast } = useToast()
+
+  const payStatus = getPaymentStatus(show.payments)
+  const config    = STATUS_CONFIG[payStatus]
+  const StatusIcon = config.icon
+
+  const totalPaid    = show.payments.filter(p => p.paid_at).reduce((s, p) => s + p.amount, 0)
+  const totalPending = show.payments.filter(p => !p.paid_at).reduce((s, p) => s + p.amount, 0)
+
+  const handleTogglePaid = useCallback(async (payment: ShowPayment) => {
+    const newPaidAt = payment.paid_at ? null : new Date().toISOString()
+    try {
+      const res = await fetch(`/api/payments/${payment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paid_at: newPaidAt }),
+      })
+      if (!res.ok) throw new Error()
+      onDataChange()
+    } catch {
+      toast({ title: 'Erro', description: 'Não foi possível atualizar o pagamento.', variant: 'destructive' })
+    }
+  }, [onDataChange, toast])
+
+  const handleDelete = useCallback(async (payment: ShowPayment) => {
+    try {
+      const res = await fetch(`/api/payments/${payment.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast({ title: 'Parcela removida' })
+      onDataChange()
+    } catch {
+      toast({ title: 'Erro', description: 'Não foi possível remover a parcela.', variant: 'destructive' })
+    }
+  }, [onDataChange, toast])
+
+  return (
+    <div className="border-b border-border/50 last:border-b-0">
+      {/* Main row */}
+      <button
+        onClick={() => { setOpen(v => !v); setAddingPlan(false) }}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors text-left"
+      >
+        {open
+          ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        }
+
+        {/* Artist color bar */}
+        <span
+          className="w-1 h-8 rounded-full shrink-0"
+          style={{ backgroundColor: show.artists?.color ?? '#4A4540' }}
+        />
+
+        {/* Show info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold truncate">{show.title}</span>
+            <span className="text-[11px] text-muted-foreground shrink-0">
+              {formatDate(show.start_at, 'dd/MM/yy')}
+            </span>
+            {show.city && (
+              <span className="text-[11px] text-muted-foreground/60 truncate hidden sm:inline">
+                {show.city}{show.state ? ` · ${show.state}` : ''}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            {show.artists?.name && (
+              <span className="text-[11px] text-muted-foreground">{show.artists.name}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Right side */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Cache vs payments summary */}
+          <div className="hidden sm:flex flex-col items-end">
+            {show.cache_value > 0 && (
+              <span className="text-xs font-semibold tabular-nums">
+                {formatCurrency(show.cache_value)}
+              </span>
+            )}
+            {show.payments.length > 0 && (
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {totalPaid > 0 && <span className="text-emerald-600 dark:text-emerald-400">{formatCurrency(totalPaid)} pago</span>}
+                {totalPaid > 0 && totalPending > 0 && ' · '}
+                {totalPending > 0 && <span>{formatCurrency(totalPending)} pendente</span>}
+              </span>
+            )}
+          </div>
+
+          {/* Status badge */}
+          <span className={cn(
+            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
+            config.className
+          )}>
+            <StatusIcon className="h-3 w-3" />
+            {config.label}
+          </span>
+        </div>
+      </button>
+
+      {/* Expanded content */}
+      {open && (
+        <div className="px-4 pb-3">
+          <div className="ml-7 pl-3 border-l border-border/60">
+            {/* Link to show detail */}
+            <div className="flex items-center justify-between mb-2">
+              <Link
+                href={`/agenda/${show.id}`}
+                className="text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                onClick={e => e.stopPropagation()}
+              >
+                Ver show completo →
+              </Link>
+              {show.payments.length > 0 && (
+                <button
+                  onClick={() => setAddingPlan(v => !v)}
+                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  Adicionar parcela
+                </button>
+              )}
+            </div>
+
+            {/* Installments */}
+            {show.payments.length > 0 ? (
+              <div className="space-y-0.5">
+                {show.payments.map(p => (
+                  <InstallmentRow
+                    key={p.id}
+                    payment={p}
+                    onTogglePaid={handleTogglePaid}
+                    onDelete={handleDelete}
+                  />
+                ))}
+                {/* Totals */}
+                {show.payments.length > 1 && (
+                  <div className="flex items-center justify-between pt-1.5 mt-1.5 border-t border-border/50 text-[11px]">
+                    <span className="text-muted-foreground">Total do plano</span>
+                    <span className="font-semibold tabular-nums">
+                      {formatCurrency(show.payments.reduce((s, p) => s + p.amount, 0))}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="py-2">
+                {!addingPlan && (
+                  <button
+                    onClick={() => setAddingPlan(true)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Criar plano de pagamento
+                  </button>
+                )}
+              </div>
+            )}
+
+            {addingPlan && (
+              <AddPaymentPlan
+                show={show}
+                onClose={() => setAddingPlan(false)}
+                onSaved={onDataChange}
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Artist group (Por Artista view) ─────────────────────────────────────────
+
+function ArtistGroup({ artist, shows, onDataChange }: {
+  artist: { id: string; name: string; color: string; photo_url: string | null }
+  shows: FinanceiroShow[]
+  onDataChange: () => void
+}) {
+  const [open, setOpen] = useState(true)
+
+  const totalCache   = shows.reduce((s, sh) => s + (sh.cache_value || 0), 0)
+  const totalPaid    = shows.flatMap(s => s.payments).filter(p => p.paid_at).reduce((s, p) => s + p.amount, 0)
+  const totalPending = shows.flatMap(s => s.payments).filter(p => !p.paid_at).reduce((s, p) => s + p.amount, 0)
+  const overdue      = shows.flatMap(s => s.payments).filter(p => !p.paid_at && isBefore(parseISO(p.due_date), new Date()))
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Artist header */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left bg-muted/20"
+      >
+        {open
+          ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        }
+        <Avatar className="h-7 w-7 shrink-0">
+          {artist.photo_url && <AvatarImage src={artist.photo_url} alt={artist.name} />}
+          <AvatarFallback style={{ backgroundColor: artist.color + '33', color: artist.color }} className="text-[10px] font-bold">
+            {initials(artist.name)}
+          </AvatarFallback>
+        </Avatar>
+        <span className="flex-1 text-sm font-semibold">{artist.name}</span>
+        <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
+          <span>{shows.length} show{shows.length !== 1 ? 's' : ''}</span>
+          {totalCache > 0 && <span className="tabular-nums font-medium text-foreground">{formatCurrency(totalCache)}</span>}
+          {overdue.length > 0 && (
+            <span className="text-destructive font-medium">{overdue.length} em atraso</span>
+          )}
+          {totalPaid > 0 && <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(totalPaid)} pago</span>}
+          {totalPending > 0 && <span className="tabular-nums">{formatCurrency(totalPending)} pendente</span>}
+        </div>
+      </button>
+
+      {open && (
+        <div className="divide-y divide-border/50">
+          {shows.map(show => (
+            <ShowRow key={show.id} show={show} onDataChange={onDataChange} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+type ViewMode = 'shows' | 'artistas'
+type FilterStatus = 'todos' | PaymentStatus
+
+export default function FinanceiroPage() {
+  const { orgId } = useSession()
+  const queryClient = useQueryClient()
+
+  const [period, setPeriod]           = useState<Period>('ano')
+  const [filterArtist, setFilterArtist] = useState<string>('')
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('todos')
+  const [viewMode, setViewMode]       = useState<ViewMode>('shows')
+
+  const { from, to } = getPeriodRange(period)
+
+  const { data: shows, isLoading } = useFinanceiro(
+    orgId,
+    from,
+    to,
+    filterArtist || undefined
+  )
+  const { data: artistsData } = useArtists(orgId)
+
+  const invalidate = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['financeiro', orgId] })
+  }, [queryClient, orgId])
+
+  // ── Filtered shows ──
+  const filteredShows = useMemo(() => {
+    if (!shows) return []
+    if (filterStatus === 'todos') return shows
+    return shows.filter(s => getPaymentStatus(s.payments) === filterStatus)
+  }, [shows, filterStatus])
+
+  // ── KPIs ──
+  const kpis = useMemo(() => {
+    if (!shows) return { semPlano: 0, totalPendente: 0, totalPago: 0, totalAtrasado: 0 }
+    const allPayments = shows.flatMap(s => s.payments)
+    const now = new Date()
+    return {
+      semPlano:      shows.filter(s => !s.payments.length).length,
+      totalPendente: allPayments.filter(p => !p.paid_at).reduce((s, p) => s + p.amount, 0),
+      totalPago:     allPayments.filter(p => p.paid_at).reduce((s, p) => s + p.amount, 0),
+      totalAtrasado: allPayments.filter(p => !p.paid_at && isBefore(parseISO(p.due_date), now)).reduce((s, p) => s + p.amount, 0),
+    }
+  }, [shows])
+
+  // ── Group by artist for artista view ──
+  const byArtist = useMemo(() => {
+    const map = new Map<string, { artist: FinanceiroShow['artists'] & { id: string }; shows: FinanceiroShow[] }>()
+    filteredShows.forEach(show => {
+      if (!show.artists) return
+      const key = show.artist_id
+      if (!map.has(key)) {
+        map.set(key, { artist: show.artists as { id: string; name: string; color: string; photo_url: string | null }, shows: [] })
+      }
+      map.get(key)!.shows.push(show)
+    })
+    return Array.from(map.values()).sort((a, b) => a.artist.name.localeCompare(b.artist.name))
+  }, [filteredShows])
+
+  const artists = artistsData?.artists ?? []
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto">
+      {/* ── Toolbar ── */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border">
+        <div className="px-4 md:px-6 py-3 flex flex-wrap items-center gap-3">
+
+          {/* Period filter */}
+          <div className="flex gap-1">
+            {(Object.keys(PERIOD_LABELS) as Period[]).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={cn(
+                  'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                  period === p
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                {PERIOD_LABELS[p]}
+              </button>
+            ))}
+          </div>
+
+          <div className="h-4 w-px bg-border hidden sm:block" />
+
+          {/* Artist filter */}
+          <select
+            value={filterArtist}
+            onChange={e => setFilterArtist(e.target.value)}
+            className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">Todos os artistas</option>
+            {artists.map(a => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+
+          {/* Status filter */}
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value as FilterStatus)}
+            className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="todos">Todos os status</option>
+            {(Object.keys(STATUS_CONFIG) as PaymentStatus[]).map(s => (
+              <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+            ))}
+          </select>
+
+          <div className="ml-auto flex gap-1">
+            <button
+              onClick={() => setViewMode('shows')}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                viewMode === 'shows'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              )}
+            >
+              <LayoutList className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Por show</span>
+            </button>
+            <button
+              onClick={() => setViewMode('artistas')}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                viewMode === 'artistas'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              )}
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Por artista</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 px-4 md:px-6 py-4 space-y-4">
+        {/* ── KPIs ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KpiCard
+            icon={DollarSign}
+            label="A receber"
+            value={formatCurrency(kpis.totalPendente)}
+            accent="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+          />
+          <KpiCard
+            icon={CheckCircle2}
+            label="Recebido"
+            value={formatCurrency(kpis.totalPago)}
+            accent="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          />
+          <KpiCard
+            icon={AlertTriangle}
+            label="Em atraso"
+            value={formatCurrency(kpis.totalAtrasado)}
+            accent={kpis.totalAtrasado > 0 ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}
+          />
+          <KpiCard
+            icon={Ban}
+            label="Shows sem plano"
+            value={String(kpis.semPlano)}
+            sub={kpis.semPlano ? 'Clique para adicionar' : 'Todos planejados'}
+            accent={kpis.semPlano > 0 ? 'bg-muted text-muted-foreground' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'}
+          />
+        </div>
+
+        {/* ── Content ── */}
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-14 rounded-xl" />
+            ))}
+          </div>
+        ) : filteredShows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <TrendingUp className="h-10 w-10 text-muted-foreground/30 mb-4" />
+            <p className="text-sm font-medium text-muted-foreground">
+              {filterStatus !== 'todos'
+                ? `Nenhum show com status "${STATUS_CONFIG[filterStatus as PaymentStatus]?.label}" no período.`
+                : 'Nenhum show encontrado no período selecionado.'
+              }
+            </p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Tente um período diferente ou verifique os filtros.
+            </p>
+          </div>
+        ) : viewMode === 'shows' ? (
+          /* ── Por show ── */
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/20">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {filteredShows.length} show{filteredShows.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <div>
+              {filteredShows.map(show => (
+                <ShowRow key={show.id} show={show} onDataChange={invalidate} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* ── Por artista ── */
+          <div className="space-y-3">
+            {byArtist.map(({ artist, shows: artistShows }) => (
+              <ArtistGroup
+                key={artist.id}
+                artist={artist}
+                shows={artistShows}
+                onDataChange={invalidate}
+              />
+            ))}
+            {/* Shows without artist */}
+            {(() => {
+              const noArtist = filteredShows.filter(s => !s.artists)
+              if (!noArtist.length) return null
+              return (
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border bg-muted/20">
+                    <p className="text-sm font-semibold text-muted-foreground">Sem artista vinculado</p>
+                  </div>
+                  {noArtist.map(show => (
+                    <ShowRow key={show.id} show={show} onDataChange={invalidate} />
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

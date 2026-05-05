@@ -164,43 +164,44 @@ export function useShows(orgId: string, status?: string, q?: string) {
 
 // ─── Financeiro ───────────────────────────────────────────────────────────────
 
-export function useFinanceiro(orgId: string) {
+export type ShowPayment = {
+  id: string
+  show_id: string
+  amount: number
+  due_date: string
+  paid_at: string | null
+  description: string | null
+  created_at: string
+}
+
+export type FinanceiroShow = {
+  id: string
+  title: string
+  status: string
+  start_at: string
+  city: string | null
+  state: string | null
+  cache_value: number
+  artist_id: string
+  artists: { id: string; name: string; color: string; photo_url: string | null } | null
+  payments: ShowPayment[]
+}
+
+export function useFinanceiro(orgId: string, from?: string, to?: string, artistId?: string) {
+  const params = new URLSearchParams()
+  if (from)     params.set('from', from)
+  if (to)       params.set('to', to)
+  if (artistId) params.set('artist_id', artistId)
+
   return useQuery({
-    queryKey: ['financeiro', orgId],
+    queryKey: ['financeiro', orgId, from, to, artistId],
+    enabled: !!orgId,
     queryFn: async () => {
-      const supabase = createClient() as any
-      const [rec, exp] = await Promise.all([
-        supabase
-          .from('receivables')
-          .select('id, amount, status, due_date, description, shows(title, artists(name))')
-          .eq('org_id', orgId)
-          .order('due_date', { ascending: true })
-          .limit(30),
-        supabase
-          .from('expenses')
-          .select('id, amount, category, description, paid, shows(title)')
-          .eq('org_id', orgId)
-          .order('created_at', { ascending: false })
-          .limit(20),
-      ])
-      return {
-        receivables: (rec.data ?? []) as {
-          id: string
-          amount: number
-          status: string
-          due_date: string
-          description: string | null
-          shows: { title: string; artists: { name: string } | null } | null
-        }[],
-        expenses: (exp.data ?? []) as {
-          id: string
-          amount: number
-          category: string
-          description: string | null
-          paid: boolean
-          shows: { title: string } | null
-        }[],
-      }
+      const qs = params.toString()
+      const res = await fetch(`/api/payments${qs ? `?${qs}` : ''}`)
+      if (!res.ok) throw new Error('Falha ao carregar financeiro')
+      const { shows } = await res.json() as { shows: FinanceiroShow[] }
+      return (shows ?? []) as FinanceiroShow[]
     },
     staleTime: 30 * 1000,
   })

@@ -12,7 +12,7 @@ const PAGE_TITLES: Record<string, { label: string; description?: string }> = {
   '/agenda':       { label: 'Agenda',        description: 'Shows e eventos' },
   '/calendario':   { label: 'Calendário',    description: 'Ano, mês, semana e dia' },
   '/kanban':       { label: 'Quadro',        description: 'Kanban' },
-  '/financeiro':   { label: 'Financeiro',    description: 'Em desenvolvimento' },
+  '/financeiro':   { label: 'Financeiro',    description: 'Cachês e pagamentos' },
   '/artistas':     { label: 'Artistas',      description: 'Gestão de artistas' },
   '/contratantes': { label: 'Contratantes',  description: 'Empresas e produtoras' },
   '/equipe':       { label: 'Equipe',        description: 'Membros e convites' },

@@ -40,7 +40,7 @@ const NAV_SECTIONS = [
     items: [
       { href: '/artistas',    label: 'Artistas',     icon: Mic2 },
       { href: '/contratantes',label: 'Contratantes', icon: Building2 },
-      { href: '/financeiro',  label: 'Financeiro',   icon: TrendingUp, soon: true },
+      { href: '/financeiro',  label: 'Financeiro',   icon: TrendingUp },
     ],
   },
 ]

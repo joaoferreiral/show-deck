@@ -14,6 +14,11 @@ export type ActivityAction =
   | 'member.disabled'
   | 'member.enabled'
   | 'invite.created'
+  | 'payment.created'
+  | 'payment.paid'
+  | 'payment.unpaid'
+  | 'payment.updated'
+  | 'payment.deleted'
 
 interface LogParams {
   orgId: string
