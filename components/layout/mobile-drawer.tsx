@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import { createClient } from '@/lib/supabase/client'
@@ -13,7 +13,38 @@ import { initials } from '@/lib/utils'
 import {
   X, LogOut, Sun, MoonStar, Check, Plus, Music2,
   Mail, UserCircle, Settings, ChevronRight,
+  LayoutDashboard, CalendarDays, Calendar, TrendingUp,
+  Mic2, Building2, KanbanSquare, Users,
 } from 'lucide-react'
+
+// ─── Nav structure (mirrors sidebar) ─────────────────────────────────────────
+
+const NAV_SECTIONS = [
+  {
+    label: 'Visão Geral',
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Operacional',
+    items: [
+      { href: '/agenda',     label: 'Agenda',     icon: CalendarDays },
+      { href: '/calendario', label: 'Calendário', icon: Calendar },
+      { href: '/kanban',     label: 'Quadro',     icon: KanbanSquare },
+    ],
+  },
+  {
+    label: 'Negócios',
+    items: [
+      { href: '/artistas',     label: 'Artistas',     icon: Mic2 },
+      { href: '/contratantes', label: 'Contratantes', icon: Building2 },
+      { href: '/financeiro',   label: 'Financeiro',   icon: TrendingUp },
+    ],
+  },
+]
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type PendingInvite = {
   token: string
@@ -27,14 +58,19 @@ type Props = {
   onClose: () => void
 }
 
+// ─── Drawer ───────────────────────────────────────────────────────────────────
+
 export function MobileDrawer({ open, onClose }: Props) {
-  const router = useRouter()
+  const router   = useRouter()
+  const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
   const { orgId, orgName, userName, userEmail, userAvatar, userRole, allOrgs } = useSession()
-  const [invite, setInvite] = useState<PendingInvite | null>(null)
+  const [invite, setInvite]     = useState<PendingInvite | null>(null)
   const [switching, setSwitching] = useState<string | null>(null)
   const [accepting, setAccepting] = useState(false)
   const [declining, setDeclining] = useState(false)
+
+  const isAdminOrOwner = userRole === 'owner' || userRole === 'admin'
 
   // Load pending invite when drawer opens
   useEffect(() => {
@@ -47,11 +83,7 @@ export function MobileDrawer({ open, onClose }: Props) {
 
   // Lock body scroll when open
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
+    document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [open])
 
@@ -131,7 +163,6 @@ export function MobileDrawer({ open, onClose }: Props) {
         style={{
           backgroundColor: 'hsl(var(--sidebar))',
           paddingTop: 'env(safe-area-inset-top, 0px)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
         }}
       >
         {/* Header */}
@@ -145,13 +176,17 @@ export function MobileDrawer({ open, onClose }: Props) {
           <button
             onClick={onClose}
             className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            aria-label="Fechar menu"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto">
+        <div
+          className="flex-1 overflow-y-auto"
+          style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
+        >
 
           {/* ── Perfil ── */}
           <div className="px-4 py-4 border-b border-border">
@@ -170,16 +205,68 @@ export function MobileDrawer({ open, onClose }: Props) {
                 </span>
               </div>
             </div>
-            <Link
-              href="/configuracoes"
-              onClick={onClose}
-              className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              Configurações
-              <ChevronRight className="h-3 w-3 ml-auto" />
-            </Link>
           </div>
+
+          {/* ── Navegação ── */}
+          <nav className="px-3 py-3 border-b border-border space-y-4">
+            {NAV_SECTIONS.map(section => (
+              <div key={section.label}>
+                <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+                  {section.label}
+                </p>
+                <div className="space-y-0.5">
+                  {section.items.map(({ href, label, icon: Icon }) => {
+                    const isActive = pathname === href || pathname.startsWith(href + '/')
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        onClick={onClose}
+                        className={cn(
+                          'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                        )}
+                      >
+                        <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground')} />
+                        {label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {/* Admin-only: Equipe */}
+            {isAdminOrOwner && (
+              <div>
+                <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 select-none">
+                  Administração
+                </p>
+                <div className="space-y-0.5">
+                  {(() => {
+                    const isActive = pathname.startsWith('/equipe')
+                    return (
+                      <Link
+                        href="/equipe"
+                        onClick={onClose}
+                        className={cn(
+                          'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                        )}
+                      >
+                        <Users className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-muted-foreground')} />
+                        Equipe
+                      </Link>
+                    )
+                  })()}
+                </div>
+              </div>
+            )}
+          </nav>
 
           {/* ── Organizações ── */}
           <div className="px-4 py-3 border-b border-border">
@@ -239,21 +326,10 @@ export function MobileDrawer({ open, onClose }: Props) {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="flex-1 h-7 text-xs"
-                    disabled={accepting}
-                    onClick={acceptInvite}
-                  >
+                  <Button size="sm" className="flex-1 h-7 text-xs" disabled={accepting} onClick={acceptInvite}>
                     {accepting ? 'Aceitando…' : 'Aceitar'}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 h-7 text-xs"
-                    disabled={declining}
-                    onClick={declineInvite}
-                  >
+                  <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" disabled={declining} onClick={declineInvite}>
                     {declining ? '…' : 'Recusar'}
                   </Button>
                 </div>
@@ -261,8 +337,17 @@ export function MobileDrawer({ open, onClose }: Props) {
             </div>
           )}
 
-          {/* ── Perfil link ── */}
-          <div className="px-4 py-3">
+          {/* ── Links de conta ── */}
+          <div className="px-4 py-3 space-y-0.5">
+            <Link
+              href="/configuracoes"
+              onClick={onClose}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              <Settings className="h-3.5 w-3.5" />
+              Configurações
+              <ChevronRight className="h-3 w-3 ml-auto" />
+            </Link>
             <Link
               href="/org-select"
               onClick={onClose}
@@ -270,34 +355,29 @@ export function MobileDrawer({ open, onClose }: Props) {
             >
               <UserCircle className="h-3.5 w-3.5" />
               Selecionar organização
+              <ChevronRight className="h-3 w-3 ml-auto" />
             </Link>
+
+            {/* Theme toggle */}
+            <button
+              onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+              className="flex items-center gap-2.5 w-full rounded-lg px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+            >
+              {resolvedTheme === 'dark'
+                ? <Sun className="h-3.5 w-3.5" />
+                : <MoonStar className="h-3.5 w-3.5" />}
+              {resolvedTheme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+            </button>
+
+            {/* Logout */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2.5 w-full rounded-lg px-3 py-2.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sair da conta
+            </button>
           </div>
-        </div>
-
-        {/* ── Bottom actions — extra padding to clear the mobile bottom nav ── */}
-        <div
-          className="border-t border-border px-4 pt-3 space-y-1 shrink-0"
-          style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))' }}
-        >
-          {/* Theme toggle */}
-          <button
-            onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-            className="flex items-center gap-2.5 w-full rounded-lg px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          >
-            {resolvedTheme === 'dark'
-              ? <Sun className="h-3.5 w-3.5" />
-              : <MoonStar className="h-3.5 w-3.5" />}
-            {resolvedTheme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-          </button>
-
-          {/* Logout */}
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2.5 w-full rounded-lg px-3 py-2.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            Sair da conta
-          </button>
         </div>
       </div>
     </>

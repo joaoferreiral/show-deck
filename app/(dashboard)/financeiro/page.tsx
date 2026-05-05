@@ -17,7 +17,7 @@ import {
   ChevronDown, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Clock,
   Plus, Trash2, LayoutList, Users, TrendingUp,
-  DollarSign, AlertTriangle, Ban,
+  DollarSign, AlertTriangle, Ban, Download, Loader2,
 } from 'lucide-react'
 import {
   startOfYear, endOfYear, startOfMonth, endOfMonth,
@@ -585,13 +585,15 @@ type ViewMode = 'shows' | 'artistas'
 type FilterStatus = 'todos' | PaymentStatus
 
 export default function FinanceiroPage() {
-  const { orgId } = useSession()
+  const { orgId, orgName } = useSession()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   const [period, setPeriod]           = useState<Period>('ano')
   const [filterArtist, setFilterArtist] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('todos')
   const [viewMode, setViewMode]       = useState<ViewMode>('shows')
+  const [exporting, setExporting]     = useState(false)
 
   const { from, to } = getPeriodRange(period)
 
@@ -643,6 +645,202 @@ export default function FinanceiroPage() {
 
   const artists = artistsData?.artists ?? []
 
+  // ── PDF Export ──────────────────────────────────────────────────────────────
+  async function exportPDF() {
+    if (!filteredShows.length) {
+      toast({ title: 'Nenhum dado', description: 'Não há shows para exportar com os filtros atuais.', variant: 'destructive' })
+      return
+    }
+    setExporting(true)
+    try {
+      const { default: jsPDF } = await import('jspdf')
+      const { default: autoTable } = await import('jspdf-autotable')
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const now   = new Date()
+      const brand: [number, number, number] = [44, 41, 38]   // #2C2926
+      const gray:  [number, number, number] = [100, 97, 93]
+      const green: [number, number, number] = [22, 163, 74]
+      const red:   [number, number, number] = [220, 38, 38]
+      const blue:  [number, number, number] = [37, 99, 235]
+      const pageW = doc.internal.pageSize.getWidth()
+
+      // ── Cabeçalho ──────────────────────────────────────────────────────────
+      doc.setFillColor(...brand)
+      doc.rect(0, 0, pageW, 28, 'F')
+
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('ShowDeck', 14, 11)
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.text('Relatório Financeiro', 14, 18)
+
+      doc.setTextColor(200, 196, 192)
+      doc.setFontSize(8)
+      doc.text(orgName, pageW - 14, 11, { align: 'right' })
+      doc.text(`Gerado em ${format(now, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, pageW - 14, 18, { align: 'right' })
+
+      // período
+      const periodStr = period === 'tudo'
+        ? 'Todo o período'
+        : `${PERIOD_LABELS[period]}${from ? ` · ${format(new Date(from), 'dd/MM/yyyy')} – ${format(new Date(to!), 'dd/MM/yyyy')}` : ''}`
+      doc.text(periodStr, pageW / 2, 24, { align: 'center' })
+
+      // ── Resumo KPIs ────────────────────────────────────────────────────────
+      let y = 38
+      doc.setTextColor(...brand)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Resumo', 14, y)
+
+      y += 6
+      const kpiData = [
+        ['A Receber',       formatCurrency(kpis.totalPendente)],
+        ['Recebido',        formatCurrency(kpis.totalPago)],
+        ['Em Atraso',       formatCurrency(kpis.totalAtrasado)],
+        ['Shows sem Plano', String(kpis.semPlano)],
+        ['Total de Shows',  String(filteredShows.length)],
+      ]
+      autoTable(doc, {
+        startY: y,
+        body: kpiData,
+        theme: 'plain',
+        styles: { fontSize: 9, cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 } },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 50, textColor: gray },
+          1: { cellWidth: 60, textColor: brand },
+        },
+        margin: { left: 14, right: 14 },
+      })
+
+      y = (doc as any).lastAutoTable.finalY + 8
+
+      // ── Detalhe por show ───────────────────────────────────────────────────
+      doc.setTextColor(...brand)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Detalhe por Show', 14, y)
+      y += 4
+
+      for (const show of filteredShows) {
+        const payStatus = getPaymentStatus(show.payments)
+        const statusLabel = STATUS_CONFIG[payStatus].label
+        const totalShowPaid    = show.payments.filter(p => p.paid_at).reduce((s, p) => s + p.amount, 0)
+        const totalShowPending = show.payments.filter(p => !p.paid_at).reduce((s, p) => s + p.amount, 0)
+
+        // show header row
+        autoTable(doc, {
+          startY: y,
+          head: [[
+            { content: show.title, colSpan: 3, styles: { fontStyle: 'bold', fontSize: 9, textColor: [255,255,255], fillColor: brand } },
+            { content: statusLabel, styles: { fontStyle: 'bold', fontSize: 8, textColor: [255,255,255], fillColor: brand, halign: 'right' } },
+          ]],
+          body: [[
+            show.artists?.name ?? '—',
+            format(new Date(show.start_at), 'dd/MM/yyyy', { locale: ptBR }),
+            show.city ? `${show.city}${show.state ? ` / ${show.state}` : ''}` : '—',
+            show.cache_value > 0 ? formatCurrency(show.cache_value) : '—',
+          ]],
+          styles: { fontSize: 8, cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 } },
+          bodyStyles: { textColor: gray },
+          margin: { left: 14, right: 14 },
+          tableWidth: pageW - 28,
+          columnStyles: {
+            0: { cellWidth: 55 },
+            1: { cellWidth: 28 },
+            2: { cellWidth: 'auto' },
+            3: { cellWidth: 35, halign: 'right' },
+          },
+        })
+        y = (doc as any).lastAutoTable.finalY
+
+        if (show.payments.length > 0) {
+          const rows = show.payments.map((p, i) => {
+            const isPaid  = !!p.paid_at
+            const overdue = !isPaid && isBefore(parseISO(p.due_date), now)
+            return [
+              p.description ?? `Parcela ${i + 1}`,
+              format(new Date(p.due_date), 'dd/MM/yyyy'),
+              isPaid ? `Pago em ${format(new Date(p.paid_at!), 'dd/MM/yyyy')}` : overdue ? 'Em atraso' : 'Pendente',
+              formatCurrency(p.amount),
+            ]
+          })
+
+          // summary row
+          if (show.payments.length > 1) {
+            rows.push(['', '', 'Total pago / pendente', `${formatCurrency(totalShowPaid)} / ${formatCurrency(totalShowPending)}`])
+          }
+
+          autoTable(doc, {
+            startY: y,
+            head: [['Descrição', 'Vencimento', 'Status', 'Valor']],
+            body: rows,
+            styles: { fontSize: 7.5, cellPadding: { top: 1.2, bottom: 1.2, left: 4, right: 3 } },
+            headStyles: { fillColor: [230, 228, 224], textColor: brand, fontStyle: 'bold', fontSize: 7.5 },
+            bodyStyles: { textColor: gray },
+            margin: { left: 20, right: 14 },
+            tableWidth: pageW - 34,
+            columnStyles: {
+              0: { cellWidth: 'auto' },
+              1: { cellWidth: 26 },
+              2: { cellWidth: 30 },
+              3: { cellWidth: 32, halign: 'right' },
+            },
+            didParseCell(data) {
+              if (data.section === 'body' && data.column.index === 2) {
+                const v = String(data.cell.raw)
+                if (v === 'Pago em' || v.startsWith('Pago em'))       data.cell.styles.textColor = green
+                else if (v === 'Em atraso')                            data.cell.styles.textColor = red
+                else if (v === 'Pendente')                             data.cell.styles.textColor = blue
+              }
+              // summary row — last row bold
+              if (data.section === 'body' && data.row.index === rows.length - 1 && show.payments.length > 1) {
+                data.cell.styles.fontStyle = 'bold'
+                data.cell.styles.textColor = brand
+              }
+            },
+          })
+          y = (doc as any).lastAutoTable.finalY + 3
+        } else {
+          // no payment plan
+          doc.setFontSize(7.5)
+          doc.setTextColor(...gray)
+          doc.setFont('helvetica', 'italic')
+          doc.text('Sem plano de pagamento cadastrado.', 22, y + 4)
+          y += 8
+        }
+
+        // page break buffer
+        if (y > doc.internal.pageSize.getHeight() - 30) {
+          doc.addPage()
+          y = 16
+        }
+      }
+
+      // ── Rodapé ─────────────────────────────────────────────────────────────
+      const totalPages = (doc.internal as any).getNumberOfPages()
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        doc.setFontSize(7)
+        doc.setTextColor(...gray)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`ShowDeck · ${orgName}`, 14, doc.internal.pageSize.getHeight() - 6)
+        doc.text(`Página ${i} de ${totalPages}`, pageW - 14, doc.internal.pageSize.getHeight() - 6, { align: 'right' })
+      }
+
+      doc.save(`financeiro-${format(now, 'yyyy-MM-dd')}.pdf`)
+      toast({ title: 'PDF exportado com sucesso!' })
+    } catch (err) {
+      console.error(err)
+      toast({ title: 'Erro ao exportar', description: 'Não foi possível gerar o PDF.', variant: 'destructive' })
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {/* ── Toolbar ── */}
@@ -693,30 +891,49 @@ export default function FinanceiroPage() {
             ))}
           </select>
 
-          <div className="ml-auto flex gap-1">
+          <div className="ml-auto flex items-center gap-1.5">
+            {/* View toggle */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => setViewMode('shows')}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                  viewMode === 'shows'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                )}
+              >
+                <LayoutList className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Por show</span>
+              </button>
+              <button
+                onClick={() => setViewMode('artistas')}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                  viewMode === 'artistas'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                )}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Por artista</span>
+              </button>
+            </div>
+
+            <div className="w-px h-4 bg-border" />
+
+            {/* Export PDF */}
             <button
-              onClick={() => setViewMode('shows')}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                viewMode === 'shows'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted'
-              )}
+              onClick={exportPDF}
+              disabled={exporting || isLoading || !filteredShows.length}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Exportar PDF"
             >
-              <LayoutList className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Por show</span>
-            </button>
-            <button
-              onClick={() => setViewMode('artistas')}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                viewMode === 'artistas'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted'
-              )}
-            >
-              <Users className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Por artista</span>
+              {exporting
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Download className="h-3.5 w-3.5" />
+              }
+              <span className="hidden sm:inline">Exportar PDF</span>
             </button>
           </div>
         </div>
