@@ -46,10 +46,10 @@ const NAV_SECTIONS = [
 ]
 
 const MOBILE_ITEMS_BASE = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/agenda',    label: 'Agenda',    icon: CalendarDays },
-  { href: '/artistas',  label: 'Artistas',  icon: Mic2 },
-  { href: '/kanban',    label: 'Quadro',    icon: KanbanSquare },
+  { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
+  { href: '/agenda',     label: 'Agenda',     icon: CalendarDays },
+  { href: '/artistas',   label: 'Artistas',   icon: Mic2 },
+  { href: '/financeiro', label: 'Financeiro', icon: TrendingUp },
 ]
 
 const MOBILE_ITEM_EQUIPE = { href: '/equipe', label: 'Equipe', icon: UserCheck }
