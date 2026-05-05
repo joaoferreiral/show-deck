@@ -13,7 +13,7 @@ import type { ShowStatus } from '@/types'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
-  ChevronRight, Upload, X, FileText, Loader2, Save,
+  ChevronRight, ArrowLeft, Upload, X, FileText, Loader2, Save,
   CalendarDays, Pencil, Trash2, Music2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -395,17 +395,28 @@ export default function ShowDetailPage() {
 
       {/* ── Sticky header ───────────────────────────────────────────────── */}
       <div className="sticky top-0 z-10 bg-background border-b px-4 md:px-6 py-3 flex items-center justify-between gap-3">
-        <div>
-          <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
-            <Link href="/agenda" className="hover:text-foreground transition-colors">Agenda</Link>
-            <ChevronRight className="w-3 h-3" />
-            <span className="text-foreground font-medium truncate max-w-[200px]">
-              {editing ? 'Editando' : show.title}
-            </span>
-          </nav>
-          <h1 className="text-lg font-bold leading-tight truncate max-w-xs md:max-w-md">
-            {show.title}
-          </h1>
+        <div className="flex items-center gap-2 min-w-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground -ml-1"
+            onClick={() => router.back()}
+            aria-label="Voltar"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <nav className="flex items-center gap-1 text-xs text-muted-foreground mb-0.5">
+              <Link href="/agenda" className="hover:text-foreground transition-colors">Agenda</Link>
+              <ChevronRight className="w-3 h-3" />
+              <span className="text-foreground font-medium truncate max-w-[160px] md:max-w-[200px]">
+                {editing ? 'Editando' : show.title}
+              </span>
+            </nav>
+            <h1 className="text-lg font-bold leading-tight truncate max-w-[220px] md:max-w-md">
+              {show.title}
+            </h1>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

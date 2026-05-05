@@ -314,9 +314,13 @@ function InstallmentRow({
 
 function ShowRow({
   show,
+  orgId,
+  queryClient,
   onDataChange,
 }: {
   show: FinanceiroShow
+  orgId: string
+  queryClient: ReturnType<typeof useQueryClient>
   onDataChange: () => void
 }) {
   const [open, setOpen]           = useState(false)
@@ -330,8 +334,26 @@ function ShowRow({
   const totalPaid    = show.payments.filter(p => p.paid_at).reduce((s, p) => s + p.amount, 0)
   const totalPending = show.payments.filter(p => !p.paid_at).reduce((s, p) => s + p.amount, 0)
 
+  // Optimistically update a single payment in the cache — zero delay
+  const patchCachePayment = useCallback((paymentId: string, newPaidAt: string | null) => {
+    queryClient.setQueriesData<FinanceiroShow[]>(
+      { queryKey: ['financeiro', orgId], exact: false },
+      (old) => {
+        if (!old) return old
+        return old.map(s => ({
+          ...s,
+          payments: s.payments.map(p =>
+            p.id === paymentId ? { ...p, paid_at: newPaidAt } : p
+          ),
+        }))
+      }
+    )
+  }, [queryClient, orgId])
+
   const handleTogglePaid = useCallback(async (payment: ShowPayment) => {
     const newPaidAt = payment.paid_at ? null : new Date().toISOString()
+    // Apply optimistic update immediately — UI responds at once
+    patchCachePayment(payment.id, newPaidAt)
     try {
       const res = await fetch(`/api/payments/${payment.id}`, {
         method: 'PATCH',
@@ -339,11 +361,14 @@ function ShowRow({
         body: JSON.stringify({ paid_at: newPaidAt }),
       })
       if (!res.ok) throw new Error()
+      // Sync cache with server response in background (no visible re-render)
       onDataChange()
     } catch {
+      // Revert optimistic update on error
+      patchCachePayment(payment.id, payment.paid_at)
       toast({ title: 'Erro', description: 'Não foi possível atualizar o pagamento.', variant: 'destructive' })
     }
-  }, [onDataChange, toast])
+  }, [patchCachePayment, onDataChange, toast])
 
   const handleDelete = useCallback(async (payment: ShowPayment) => {
     try {
@@ -498,9 +523,11 @@ function ShowRow({
 
 // ─── Artist group (Por Artista view) ─────────────────────────────────────────
 
-function ArtistGroup({ artist, shows, onDataChange }: {
+function ArtistGroup({ artist, shows, orgId, queryClient, onDataChange }: {
   artist: { id: string; name: string; color: string; photo_url: string | null }
   shows: FinanceiroShow[]
+  orgId: string
+  queryClient: ReturnType<typeof useQueryClient>
   onDataChange: () => void
 }) {
   const [open, setOpen] = useState(true)
@@ -527,22 +554,24 @@ function ArtistGroup({ artist, shows, onDataChange }: {
             {initials(artist.name)}
           </AvatarFallback>
         </Avatar>
-        <span className="flex-1 text-sm font-semibold">{artist.name}</span>
-        <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-          <span>{shows.length} show{shows.length !== 1 ? 's' : ''}</span>
-          {totalCache > 0 && <span className="tabular-nums font-medium text-foreground">{formatCurrency(totalCache)}</span>}
-          {overdue.length > 0 && (
-            <span className="text-destructive font-medium">{overdue.length} em atraso</span>
-          )}
-          {totalPaid > 0 && <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(totalPaid)} pago</span>}
-          {totalPending > 0 && <span className="tabular-nums">{formatCurrency(totalPending)} pendente</span>}
+        <div className="flex-1 min-w-0 text-left">
+          <p className="text-sm font-semibold truncate">{artist.name}</p>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0 text-[11px] text-muted-foreground mt-0.5">
+            <span className="shrink-0">{shows.length} show{shows.length !== 1 ? 's' : ''}</span>
+            {totalCache > 0 && <span className="tabular-nums font-medium text-foreground shrink-0">{formatCurrency(totalCache)}</span>}
+            {overdue.length > 0 && (
+              <span className="text-destructive font-medium shrink-0">{overdue.length} em atraso</span>
+            )}
+            {totalPaid > 0 && <span className="text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0">{formatCurrency(totalPaid)} pago</span>}
+            {totalPending > 0 && <span className="tabular-nums shrink-0">{formatCurrency(totalPending)} pendente</span>}
+          </div>
         </div>
       </button>
 
       {open && (
         <div className="divide-y divide-border/50">
           {shows.map(show => (
-            <ShowRow key={show.id} show={show} onDataChange={onDataChange} />
+            <ShowRow key={show.id} show={show} orgId={orgId} queryClient={queryClient} onDataChange={onDataChange} />
           ))}
         </div>
       )}
@@ -753,7 +782,7 @@ export default function FinanceiroPage() {
             </div>
             <div>
               {filteredShows.map(show => (
-                <ShowRow key={show.id} show={show} onDataChange={invalidate} />
+                <ShowRow key={show.id} show={show} orgId={orgId} queryClient={queryClient} onDataChange={invalidate} />
               ))}
             </div>
           </div>
@@ -765,6 +794,8 @@ export default function FinanceiroPage() {
                 key={artist.id}
                 artist={artist}
                 shows={artistShows}
+                orgId={orgId}
+                queryClient={queryClient}
                 onDataChange={invalidate}
               />
             ))}
@@ -778,7 +809,7 @@ export default function FinanceiroPage() {
                     <p className="text-sm font-semibold text-muted-foreground">Sem artista vinculado</p>
                   </div>
                   {noArtist.map(show => (
-                    <ShowRow key={show.id} show={show} onDataChange={invalidate} />
+                    <ShowRow key={show.id} show={show} orgId={orgId} queryClient={queryClient} onDataChange={invalidate} />
                   ))}
                 </div>
               )
