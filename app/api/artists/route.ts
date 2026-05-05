@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       bio: bio || null,
       base_city: base_city || null,
       base_state: base_state || null,
-      color: color ?? '#7c3aed',
+      color: color ?? '#4A4540',
       photo_url: photo_url ?? null,
       active: true,
       social_links: social_links ?? {},

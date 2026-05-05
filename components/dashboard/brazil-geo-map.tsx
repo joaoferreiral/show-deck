@@ -63,7 +63,7 @@ const MAX_ZOOM = 5
 const ZOOM_STEP = 0.5
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function BrazilGeoMap({ showsByState, primaryColor = '#7c3aed' }: Props) {
+export function BrazilGeoMap({ showsByState, primaryColor = '#4A4540' }: Props) {
   const features = useMemo<Feature[]>(() => {
     try {
       return (geojsonData.features as any[]).map((f: any) => ({

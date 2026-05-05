@@ -26,14 +26,14 @@ interface NewArtistDialogProps {
 }
 
 const COLORS = [
-  { label: 'Violeta', value: '#7c3aed' },
-  { label: 'Rosa', value: '#db2777' },
-  { label: 'Azul', value: '#2563eb' },
-  { label: 'Verde', value: '#059669' },
+  { label: 'Carvão',  value: '#4A4540' },
+  { label: 'Rosa',    value: '#db2777' },
+  { label: 'Azul',    value: '#2563eb' },
+  { label: 'Verde',   value: '#059669' },
   { label: 'Laranja', value: '#ea580c' },
-  { label: 'Vermelho', value: '#dc2626' },
-  { label: 'Amarelo', value: '#ca8a04' },
-  { label: 'Ciano', value: '#0891b2' },
+  { label: 'Vermelho',value: '#dc2626' },
+  { label: 'Âmbar',  value: '#ca8a04' },
+  { label: 'Ciano',   value: '#0891b2' },
 ]
 
 export function NewArtistDialog({ open, onOpenChange, orgId }: NewArtistDialogProps) {
@@ -42,7 +42,7 @@ export function NewArtistDialog({ open, onOpenChange, orgId }: NewArtistDialogPr
   const [bio, setBio] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
-  const [color, setColor] = useState('#7c3aed')
+  const [color, setColor] = useState('#4A4540')
   const [photo, setPhoto] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
 
@@ -66,7 +66,7 @@ export function NewArtistDialog({ open, onOpenChange, orgId }: NewArtistDialogPr
     setBio('')
     setCity('')
     setState('')
-    setColor('#7c3aed')
+    setColor('#4A4540')
     setPhoto(null)
     if (photoPreview) URL.revokeObjectURL(photoPreview)
     setPhotoPreview(null)

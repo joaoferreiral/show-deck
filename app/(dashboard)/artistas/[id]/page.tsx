@@ -31,7 +31,7 @@ import {
 import Link from 'next/link'
 
 const COLORS = [
-  '#7c3aed', '#db2777', '#2563eb', '#059669',
+  '#4A4540', '#db2777', '#2563eb', '#059669',
   '#ea580c', '#dc2626', '#ca8a04', '#0891b2',
 ]
 
@@ -55,7 +55,7 @@ export default function ArtistDetailPage() {
   const [bio, setBio] = useState('')
   const [city, setCity] = useState('')
   const [state, setState] = useState('')
-  const [color, setColor] = useState('#7c3aed')
+  const [color, setColor] = useState('#4A4540')
   const [active, setActive] = useState(true)
   const [photo, setPhoto] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)

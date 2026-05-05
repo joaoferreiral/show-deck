@@ -128,7 +128,7 @@ function MiniMonth({
                         style={{
                           backgroundColor: s.artists?.color
                             ?? SHOW_STATUS_COLORS[s.status as ShowStatus]
-                            ?? '#7c3aed',
+                            ?? '#4A4540',
                         }}
                       />
                     ))}
@@ -152,7 +152,7 @@ function MiniMonth({
         ) : (
           <div className="space-y-0.5">
             {monthShows.map(show => {
-              const color       = show.artists?.color ?? SHOW_STATUS_COLORS[show.status as ShowStatus] ?? '#7c3aed'
+              const color       = show.artists?.color ?? SHOW_STATUS_COLORS[show.status as ShowStatus] ?? '#4A4540'
               const statusColor = SHOW_STATUS_COLORS[show.status as ShowStatus] ?? '#6b7280'
               return (
                 <Link

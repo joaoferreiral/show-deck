@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import { SHOW_STATUS_COLORS, SHOW_STATUS_LABELS } from '@/types'
 import type { ShowStatus } from '@/types'
 
+import { useTheme } from 'next-themes'
 import { useSession } from '@/components/providers/session-provider'
 import { useDashboardAnalytics, useArtists, useContractors, useUpcomingShows } from '@/lib/hooks/queries'
 import { formatCurrency } from '@/lib/utils'
@@ -56,7 +57,7 @@ function contractType(tags: string[]): 'prefeitura' | 'privado' {
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
 function KpiCard({
-  icon: Icon, label, value, sub, accent = '#7c3aed',
+  icon: Icon, label, value, sub, accent = 'hsl(var(--foreground))',
 }: {
   icon: React.ElementType; label: string; value: string; sub?: string; accent?: string
 }) {
@@ -180,6 +181,8 @@ function readArtist(): string {
 
 export default function DashboardPage() {
   const { orgId } = useSession()
+  const { resolvedTheme } = useTheme()
+  const mapColor = resolvedTheme === 'dark' ? '#B5AFA7' : '#4A4540'
   const [period, setPeriod] = useState<Period>(readPeriod)
   const [dateRange, setDateRange] = useState<DateRange | undefined>(readRange)
   const [artistFilter, setArtistFilter] = useState<string>(readArtist)
@@ -304,7 +307,7 @@ export default function DashboardPage() {
   }, [filtered, contractorTagsMap])
 
   const contractData = [
-    { name: 'Prefeitura / Gov.', value: contractCounts.prefeitura, color: '#7c3aed' },
+    { name: 'Prefeitura / Gov.', value: contractCounts.prefeitura, color: '#4A4540' },
     { name: 'Privado',           value: contractCounts.privado,    color: '#3b82f6' },
     { name: 'Sem contratante',   value: contractCounts.sem,        color: '#94a3b8' },
   ].filter(d => d.value > 0)
@@ -329,7 +332,7 @@ export default function DashboardPage() {
         s.cache_value > 0 ? formatCurrency(s.cache_value) : '—',
       ]),
       styles: { fontSize: 8 },
-      headStyles: { fillColor: [124, 58, 237] },
+      headStyles: { fillColor: [44, 41, 38] },
     })
     doc.save(`relatorio-${format(new Date(), 'yyyy-MM-dd')}.pdf`)
   }
@@ -417,7 +420,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 px-4 md:px-6 pt-4 pb-2 shrink-0">
         <KpiCard
           icon={CalendarDays} label="Total de shows" value={String(totalShows)}
-          sub={`${realizados} realizados`} accent="#7c3aed"
+          sub={`${realizados} realizados`}
         />
         <KpiCard
           icon={DollarSign} label="Cachê total" value={formatCurrency(cacheTotal)}
@@ -476,7 +479,7 @@ export default function DashboardPage() {
               <CardTitle className="text-sm font-semibold">Eventos no Brasil</CardTitle>
             </CardHeader>
             <CardContent className="px-3 pb-3 pt-2">
-              <BrazilGeoMap showsByState={byState} primaryColor="#7c3aed" />
+              <BrazilGeoMap showsByState={byState} primaryColor={mapColor} />
             </CardContent>
           </Card>
 

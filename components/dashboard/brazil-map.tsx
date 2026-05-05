@@ -42,7 +42,7 @@ interface BrazilMapProps {
   primaryColor?: string
 }
 
-export function BrazilMap({ showsByState, primaryColor = '#7c3aed' }: BrazilMapProps) {
+export function BrazilMap({ showsByState, primaryColor = '#4A4540' }: BrazilMapProps) {
   const [hovered, setHovered] = useState<string | null>(null)
 
   const maxCount = Math.max(1, ...Object.values(showsByState).filter(Boolean))
