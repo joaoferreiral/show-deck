@@ -185,7 +185,10 @@ function AddPaymentPlan({
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={cn(
+        'grid gap-2.5',
+        mode === 'parcelado' ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'
+      )}>
         <div className="space-y-1">
           <Label className="text-xs">Valor total (R$)</Label>
           <Input
@@ -195,7 +198,7 @@ function AddPaymentPlan({
             placeholder="0,00"
             value={totalAmount}
             onChange={e => setTotalAmount(e.target.value)}
-            className="h-8 text-sm"
+            className="h-8 text-sm w-full"
           />
         </div>
         <div className="space-y-1">
@@ -204,7 +207,7 @@ function AddPaymentPlan({
             type="date"
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
-            className="h-8 text-sm"
+            className="h-8 text-sm w-full"
           />
         </div>
         {mode === 'parcelado' && (
@@ -216,7 +219,7 @@ function AddPaymentPlan({
               max="24"
               value={numParcelas}
               onChange={e => setNumParcelas(e.target.value)}
-              className="h-8 text-sm"
+              className="h-8 text-sm w-full"
             />
           </div>
         )}
@@ -251,57 +254,99 @@ function InstallmentRow({
   onTogglePaid: (p: ShowPayment) => void
   onDelete: (p: ShowPayment) => void
 }) {
-  const now      = new Date()
-  const isPaid   = !!payment.paid_at
-  const dueDate  = parseISO(payment.due_date)
-  const overdue  = !isPaid && isBefore(dueDate, now)
+  const now     = new Date()
+  const isPaid  = !!payment.paid_at
+  const overdue = !isPaid && isBefore(parseISO(payment.due_date), now)
 
   return (
-    <div className={cn(
-      'flex items-center gap-3 py-2 px-1 rounded-md group',
-      isPaid ? 'opacity-60' : ''
-    )}>
+    <div className="flex items-center gap-1 rounded-md group">
+
+      {/* ── Clickable area — entire row ── */}
       <button
         onClick={() => onTogglePaid(payment)}
-        className="shrink-0 transition-colors"
+        className="flex flex-1 items-center gap-3 py-2.5 px-2 rounded-md hover:bg-muted/50 active:bg-muted/70 transition-colors text-left min-w-0"
         aria-label={isPaid ? 'Desmarcar como pago' : 'Marcar como pago'}
       >
-        {isPaid
-          ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          : overdue
-            ? <Circle className="h-4 w-4 text-destructive" />
-            : <Circle className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
-        }
-      </button>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn(
-            'text-xs font-semibold tabular-nums',
-            isPaid ? 'line-through text-muted-foreground' : overdue ? 'text-destructive' : 'text-foreground'
-          )}>
-            {formatCurrency(payment.amount)}
-          </span>
-          {payment.description && (
-            <span className="text-[11px] text-muted-foreground truncate">{payment.description}</span>
-          )}
-        </div>
-        <p className={cn(
-          'text-[11px]',
-          isPaid ? 'text-muted-foreground/50' : overdue ? 'text-destructive/70' : 'text-muted-foreground'
+        {/* Check icon — animates on state change */}
+        <span className={cn(
+          'shrink-0 transition-all duration-200',
+          isPaid ? 'scale-110' : 'scale-100',
         )}>
           {isPaid
-            ? `Pago em ${formatDate(payment.paid_at!)}`
+            ? <CheckCircle2 className="h-4 w-4 text-emerald-500 transition-all duration-300" />
             : overdue
-              ? `Venceu ${formatDate(payment.due_date)}`
-              : `Vence ${formatDate(payment.due_date)}`
+              ? <Circle className="h-4 w-4 text-destructive transition-all duration-300" />
+              : <Circle className="h-4 w-4 text-muted-foreground transition-all duration-300" />
           }
-        </p>
-      </div>
+        </span>
 
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Amount with animated strikethrough line */}
+            <span className="relative inline-flex items-center shrink-0">
+              <span className={cn(
+                'text-xs font-semibold tabular-nums transition-colors duration-300',
+                isPaid ? 'text-muted-foreground/60' : overdue ? 'text-destructive' : 'text-foreground',
+              )}>
+                {formatCurrency(payment.amount)}
+              </span>
+              {/* Line that slides in from left when paid */}
+              <span
+                aria-hidden
+                className={cn(
+                  'absolute left-0 top-[55%] h-px bg-muted-foreground/60 origin-left',
+                  'transition-transform duration-300 ease-out',
+                  isPaid ? 'scale-x-100' : 'scale-x-0',
+                )}
+                style={{ width: '100%' }}
+              />
+            </span>
+
+            {payment.description && (
+              <span className={cn(
+                'text-[11px] truncate transition-colors duration-300',
+                isPaid ? 'text-muted-foreground/40' : 'text-muted-foreground',
+              )}>
+                {payment.description}
+              </span>
+            )}
+
+            {/* Animated status badge */}
+            <span className={cn(
+              'ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+              'transition-all duration-300',
+              isPaid
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                : overdue
+                  ? 'bg-destructive/10 text-destructive'
+                  : 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+            )}>
+              {isPaid ? 'Pago' : overdue ? 'Atrasado' : 'Pendente'}
+            </span>
+          </div>
+
+          <p className={cn(
+            'text-[11px] transition-colors duration-300',
+            isPaid ? 'text-muted-foreground/40' : overdue ? 'text-destructive/70' : 'text-muted-foreground',
+          )}>
+            {isPaid
+              ? `Pago em ${formatDate(payment.paid_at!)}`
+              : overdue
+                ? `Venceu ${formatDate(payment.due_date)}`
+                : `Vence ${formatDate(payment.due_date)}`
+            }
+          </p>
+        </div>
+      </button>
+
+      {/* ── Delete — always visible on touch, hover-only on desktop ── */}
       <button
-        onClick={() => onDelete(payment)}
-        className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-1 rounded-md hover:bg-destructive/10 hover:text-destructive text-muted-foreground"
+        onClick={e => { e.stopPropagation(); onDelete(payment) }}
+        className={cn(
+          'shrink-0 p-1.5 rounded-md transition-all duration-200',
+          'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
+          'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100',
+        )}
         aria-label="Remover parcela"
       >
         <Trash2 className="h-3.5 w-3.5" />
