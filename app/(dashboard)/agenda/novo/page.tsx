@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/components/providers/session-provider'
 import { useArtists, useContractors } from '@/lib/hooks/queries'
@@ -10,14 +10,14 @@ import { useToast } from '@/components/ui/use-toast'
 import { BRAZILIAN_STATES } from '@/types'
 import { SHOW_STATUS_COLORS, SHOW_STATUS_LABELS } from '@/types'
 import type { ShowStatus } from '@/types'
-import { format } from 'date-fns'
+import { format, addMonths, parseISO, isBefore } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { initials } from '@/lib/utils'
 import {
   Upload, X, FileText, Loader2, Save,
   CalendarDays, Banknote, ArrowLeftRight, Ticket, Percent,
-  Info, MapPin, Users, Link2,
+  Info, MapPin, Users, Link2, CreditCard, CheckCircle2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -310,6 +310,37 @@ export default function NovoEventoPage() {
   const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // ── Payment plan state ────────────────────────────────────────────────────
+  const [paymentMode, setPaymentMode] = useState<'sem_plano' | 'integral' | 'parcelado'>('sem_plano')
+  const [paymentAmountStr, setPaymentAmountStr] = useState('')
+  const [paymentDate, setPaymentDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [numParcelas, setNumParcelas] = useState('2')
+
+  function selectPaymentMode(mode: 'sem_plano' | 'integral' | 'parcelado') {
+    setPaymentMode(mode)
+    // Auto-fill from cachê if amount not yet set
+    if (mode !== 'sem_plano' && !paymentAmountStr && cacheStr) {
+      setPaymentAmountStr(cacheStr)
+    }
+  }
+
+  // Installment preview for parcelado mode
+  const installmentPreview = useMemo(() => {
+    if (paymentMode !== 'parcelado') return []
+    const amount = parseCurrency(paymentAmountStr)
+    if (!amount || amount <= 0) return []
+    const n = Math.max(2, parseInt(numParcelas, 10) || 2)
+    const perParcela = Math.round((amount / n) * 100) / 100
+    const base = parseISO(paymentDate || format(new Date(), 'yyyy-MM-dd'))
+    return Array.from({ length: n }, (_, i) => ({
+      amount: i === n - 1
+        ? Math.round((amount - perParcela * (n - 1)) * 100) / 100
+        : perParcela,
+      due_date: format(addMonths(base, i), 'yyyy-MM-dd'),
+      description: `Parcela ${i + 1}/${n}`,
+    }))
+  }, [paymentMode, paymentAmountStr, numParcelas, paymentDate])
+
   const needsGuarantee = ['cache_colocado', 'bilheteria_colocada'].includes(negotiationType)
   const showCache = ['cache', 'cache_colocado'].includes(negotiationType)
 
@@ -367,19 +398,39 @@ export default function NovoEventoPage() {
 
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' })
-    } else {
-      toast({ title: 'Evento criado com sucesso!' })
-      qc.invalidateQueries({ queryKey: ['shows', orgId] })
-      qc.invalidateQueries({ queryKey: ['calendar-shows', orgId] })
-      qc.invalidateQueries({ queryKey: ['dashboard-analytics', orgId] })
-      // Log activity (fire-and-forget)
-      fetch('/api/org/log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'show.created', entityType: 'show', entityId: data?.id, entityName: eventName }),
-      }).catch(() => {})
-      router.push(data?.id ? `/agenda/${data.id}` : '/agenda')
+      setSaving(false)
+      return
     }
+
+    // ── Create payment plan if configured ──────────────────────────────────
+    if (data?.id && paymentMode !== 'sem_plano') {
+      const payAmount = parseCurrency(paymentAmountStr)
+      if (payAmount > 0) {
+        const installments = paymentMode === 'integral'
+          ? [{ amount: payAmount, due_date: paymentDate }]
+          : installmentPreview
+        if (installments.length) {
+          await fetch('/api/payments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ show_id: data.id, installments }),
+          }).catch(() => {})
+        }
+      }
+    }
+
+    toast({ title: 'Evento criado com sucesso!' })
+    qc.invalidateQueries({ queryKey: ['shows', orgId] })
+    qc.invalidateQueries({ queryKey: ['calendar-shows', orgId] })
+    qc.invalidateQueries({ queryKey: ['dashboard-analytics', orgId] })
+    qc.invalidateQueries({ queryKey: ['financeiro', orgId] })
+    // Log activity (fire-and-forget)
+    fetch('/api/org/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'show.created', entityType: 'show', entityId: data?.id, entityName: eventName }),
+    }).catch(() => {})
+    router.push(data?.id ? `/agenda/${data.id}` : '/agenda')
     setSaving(false)
   }
 
@@ -738,9 +789,152 @@ export default function NovoEventoPage() {
             </div>
           </section>
 
-          {/* ── SECTION 3: Anexos ──────────────────────────────────────── */}
+          {/* ── SECTION 3: Plano de Pagamento ─────────────────────────── */}
           <section className="rounded-xl border bg-card p-5 md:p-6 shadow-sm">
-            <SectionTitle icon={FileText} step={3}>Anexos do Evento</SectionTitle>
+            <SectionTitle icon={CreditCard} step={3}>Plano de Pagamento</SectionTitle>
+
+            {/* Mode selector */}
+            <div className="flex flex-wrap gap-2 mb-5">
+              {([
+                { value: 'sem_plano', label: 'Sem plano agora' },
+                { value: 'integral',  label: 'À vista' },
+                { value: 'parcelado', label: 'Parcelado' },
+              ] as const).map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => selectPaymentMode(value)}
+                  className={cn(
+                    'px-4 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150',
+                    paymentMode === value
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      : 'bg-background text-foreground border-border hover:border-primary/50 hover:bg-muted/50',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {paymentMode === 'sem_plano' && (
+              <p className="text-sm text-muted-foreground">
+                Você poderá adicionar o plano de pagamento depois, na aba <strong>Financeiro</strong>.
+              </p>
+            )}
+
+            {(paymentMode === 'integral' || paymentMode === 'parcelado') && (
+              <div className="space-y-4">
+                <div className={cn(
+                  'grid gap-4',
+                  paymentMode === 'parcelado'
+                    ? 'grid-cols-1 sm:grid-cols-3'
+                    : 'grid-cols-1 sm:grid-cols-2',
+                )}>
+                  {/* Amount */}
+                  <Field label="Valor total (R$)" required>
+                    <CurrencyInput value={paymentAmountStr} onChange={setPaymentAmountStr} />
+                  </Field>
+
+                  {/* Date */}
+                  <Field label={paymentMode === 'integral' ? 'Data de vencimento' : 'Data da 1ª parcela'} required>
+                    <Input
+                      type="date"
+                      value={paymentDate}
+                      onChange={e => setPaymentDate(e.target.value)}
+                      className="h-10"
+                    />
+                  </Field>
+
+                  {/* Num parcelas */}
+                  {paymentMode === 'parcelado' && (
+                    <Field label="Nº de parcelas">
+                      <Input
+                        type="number"
+                        min="2"
+                        max="24"
+                        value={numParcelas}
+                        onChange={e => setNumParcelas(e.target.value)}
+                        className="h-10"
+                      />
+                    </Field>
+                  )}
+                </div>
+
+                {/* Installment preview */}
+                {paymentMode === 'parcelado' && installmentPreview.length > 0 && (
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="px-4 py-2 bg-muted/40 border-b border-border">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Prévia das parcelas
+                      </p>
+                    </div>
+                    <div className="divide-y divide-border/50">
+                      {installmentPreview.map((inst, i) => {
+                        const isLast = i === installmentPreview.length - 1
+                        const isPast = isBefore(parseISO(inst.due_date), new Date())
+                        return (
+                          <div key={i} className="flex items-center justify-between px-4 py-2.5">
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground shrink-0">
+                                {i + 1}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {inst.description}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-right">
+                              <span className={cn(
+                                'text-[11px]',
+                                isPast ? 'text-destructive' : 'text-muted-foreground',
+                              )}>
+                                {format(parseISO(inst.due_date), 'dd/MM/yyyy')}
+                              </span>
+                              <span className={cn(
+                                'text-xs font-semibold tabular-nums',
+                                isLast && installmentPreview.length > 1 ? 'text-primary' : 'text-foreground',
+                              )}>
+                                {inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    {/* Total */}
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-t border-border">
+                      <span className="text-xs font-semibold text-muted-foreground">Total</span>
+                      <span className="text-sm font-bold tabular-nums">
+                        {parseCurrency(paymentAmountStr).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* À vista summary */}
+                {paymentMode === 'integral' && paymentAmountStr && parseCurrency(paymentAmountStr) > 0 && (
+                  <div className="flex items-center gap-2 rounded-lg bg-emerald-500/8 border border-emerald-500/20 px-4 py-3">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                      Pagamento único de{' '}
+                      <strong>
+                        {parseCurrency(paymentAmountStr).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>{' '}
+                      com vencimento em{' '}
+                      <strong>
+                        {paymentDate
+                          ? format(parseISO(paymentDate), "d 'de' MMMM 'de' yyyy", { locale: ptBR })
+                          : '—'}
+                      </strong>
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* ── SECTION 4: Anexos ──────────────────────────────────────── */}
+          <section className="rounded-xl border bg-card p-5 md:p-6 shadow-sm">
+            <SectionTitle icon={FileText} step={4}>Anexos do Evento</SectionTitle>
 
             {/* Drop zone */}
             <div
