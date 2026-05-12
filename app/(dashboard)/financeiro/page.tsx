@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from '@/components/providers/session-provider'
 import { useFinanceiro, useArtists } from '@/lib/hooks/queries'
-import type { FinanceiroShow, ShowPayment } from '@/lib/hooks/queries'
+import type { FinanceiroShow, ShowPayment, ShowExpense } from '@/lib/hooks/queries'
 import { formatCurrency, formatDate, cn, initials } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +18,8 @@ import {
   CheckCircle2, Circle, AlertCircle, Clock,
   Plus, Trash2, LayoutList, Users, TrendingUp,
   DollarSign, AlertTriangle, Ban, Download, Loader2,
+  CreditCard, Receipt,
+  Truck, Building2, Percent, Music2, Utensils, Wrench, MoreHorizontal,
 } from 'lucide-react'
 import {
   startOfYear, endOfYear, startOfMonth, endOfMonth,
@@ -52,6 +54,20 @@ const STATUS_CONFIG: Record<PaymentStatus, {
   parcial:   { label: 'Parcial',    icon: AlertCircle,  className: 'text-amber-600 bg-amber-500/10 dark:text-amber-400' },
   atrasado:  { label: 'Atrasado',   icon: AlertTriangle,className: 'text-destructive bg-destructive/10'             },
   pago:      { label: 'Pago',       icon: CheckCircle2, className: 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400' },
+}
+
+// ─── Expense category config ──────────────────────────────────────────────────
+
+type ExpenseCategory = 'logistica' | 'hospedagem' | 'comissao' | 'banda' | 'alimentacao' | 'equipamento' | 'outros'
+
+const EXPENSE_CATEGORY_CONFIG: Record<ExpenseCategory, { label: string; icon: React.ElementType }> = {
+  logistica:    { label: 'Logística',    icon: Truck          },
+  hospedagem:   { label: 'Hospedagem',   icon: Building2      },
+  comissao:     { label: 'Comissão',     icon: Percent        },
+  banda:        { label: 'Banda',        icon: Music2         },
+  alimentacao:  { label: 'Alimentação',  icon: Utensils       },
+  equipamento:  { label: 'Equipamento',  icon: Wrench         },
+  outros:       { label: 'Outros',       icon: MoreHorizontal },
 }
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
@@ -100,6 +116,117 @@ function KpiCard({
         <p className="text-xs text-muted-foreground truncate">{label}</p>
         <p className="text-base font-bold tabular-nums leading-tight">{value}</p>
         {sub && <p className="text-[11px] text-muted-foreground leading-tight">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ─── Add Expense form (inline) ────────────────────────────────────────────────
+
+function AddExpenseForm({
+  showId,
+  onClose,
+  onSaved,
+}: {
+  showId: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { toast } = useToast()
+  const [category, setCategory]     = useState<ExpenseCategory>('outros')
+  const [description, setDescription] = useState('')
+  const [amount, setAmount]         = useState('')
+  const [paid, setPaid]             = useState(false)
+  const [saving, setSaving]         = useState(false)
+
+  async function handleSave() {
+    const parsedAmount = parseFloat(amount.replace(',', '.'))
+    if (!parsedAmount || parsedAmount <= 0) {
+      toast({ title: 'Valor inválido', description: 'Informe um valor maior que zero.', variant: 'destructive' })
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          show_id: showId,
+          category,
+          description: description.trim() || null,
+          amount: parsedAmount,
+          paid,
+        }),
+      })
+      if (!res.ok) throw new Error('Erro ao salvar')
+      toast({ title: 'Despesa adicionada' })
+      onSaved()
+      onClose()
+    } catch {
+      toast({ title: 'Erro', description: 'Não foi possível salvar a despesa.', variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="mt-2 mb-1 rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+      <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wider">Nova despesa</p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div className="space-y-1">
+          <Label className="text-xs">Categoria</Label>
+          <select
+            value={category}
+            onChange={e => setCategory(e.target.value as ExpenseCategory)}
+            className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            {(Object.entries(EXPENSE_CATEGORY_CONFIG) as [ExpenseCategory, { label: string }][]).map(([key, { label }]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Valor (R$)</Label>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0,00"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            className="h-8 text-sm w-full"
+          />
+        </div>
+        <div className="space-y-1 sm:col-span-2">
+          <Label className="text-xs">Descrição <span className="text-muted-foreground/60">(opcional)</span></Label>
+          <Input
+            type="text"
+            placeholder="Ex: Ônibus SP→RJ, Hotel 2 noites…"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            className="h-8 text-sm w-full"
+          />
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={paid}
+          onChange={e => setPaid(e.target.checked)}
+          className="rounded border-border"
+        />
+        <span className="text-xs text-muted-foreground">Marcar como já paga</span>
+      </label>
+
+      <div className="flex gap-2 pt-1">
+        <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 text-xs">
+          {saving ? 'Salvando…' : 'Adicionar despesa'}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClose} className="h-7 text-xs">
+          Cancelar
+        </Button>
       </div>
     </div>
   )
@@ -355,6 +482,113 @@ function InstallmentRow({
   )
 }
 
+// ─── Expense row ─────────────────────────────────────────────────────────────
+
+function ExpenseRow({
+  expense,
+  onTogglePaid,
+  onDelete,
+}: {
+  expense: ShowExpense
+  onTogglePaid: (e: ShowExpense) => void
+  onDelete: (e: ShowExpense) => void
+}) {
+  const isPaid   = expense.paid
+  const catKey   = (expense.category as ExpenseCategory) in EXPENSE_CATEGORY_CONFIG
+    ? expense.category as ExpenseCategory
+    : 'outros'
+  const catConfig = EXPENSE_CATEGORY_CONFIG[catKey]
+  const CatIcon   = catConfig.icon
+
+  return (
+    <div className="flex items-center gap-1 rounded-md group">
+      {/* Clickable area — full row */}
+      <button
+        onClick={() => onTogglePaid(expense)}
+        className="flex flex-1 items-center gap-3 py-2.5 px-2 rounded-md hover:bg-muted/50 active:bg-muted/70 transition-colors text-left min-w-0"
+        aria-label={isPaid ? 'Desmarcar como paga' : 'Marcar como paga'}
+      >
+        {/* Paid indicator */}
+        <span className={cn('shrink-0 transition-all duration-200', isPaid ? 'scale-110' : 'scale-100')}>
+          {isPaid
+            ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            : <Circle className="h-4 w-4 text-muted-foreground" />
+          }
+        </span>
+
+        {/* Category icon */}
+        <span className={cn(
+          'shrink-0 flex h-5 w-5 items-center justify-center rounded',
+          isPaid ? 'text-muted-foreground/40' : 'text-muted-foreground',
+        )}>
+          <CatIcon className="h-3 w-3" />
+        </span>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Amount with strikethrough animation */}
+            <span className="relative inline-flex items-center shrink-0">
+              <span className={cn(
+                'text-xs font-semibold tabular-nums transition-colors duration-300',
+                isPaid ? 'text-muted-foreground/60' : 'text-foreground',
+              )}>
+                {formatCurrency(expense.amount)}
+              </span>
+              <span
+                aria-hidden
+                className={cn(
+                  'absolute left-0 top-[55%] h-px bg-muted-foreground/60 origin-left',
+                  'transition-transform duration-300 ease-out',
+                  isPaid ? 'scale-x-100' : 'scale-x-0',
+                )}
+                style={{ width: '100%' }}
+              />
+            </span>
+
+            <span className={cn(
+              'text-[11px] transition-colors duration-300',
+              isPaid ? 'text-muted-foreground/40' : 'text-muted-foreground',
+            )}>
+              {expense.description ?? catConfig.label}
+            </span>
+
+            <span className={cn(
+              'ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium transition-all duration-300',
+              isPaid
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                : 'bg-muted text-muted-foreground',
+            )}>
+              {isPaid ? 'Paga' : catConfig.label}
+            </span>
+          </div>
+
+          {expense.notes && (
+            <p className={cn(
+              'text-[11px] truncate transition-colors duration-300',
+              isPaid ? 'text-muted-foreground/40' : 'text-muted-foreground/60',
+            )}>
+              {expense.notes}
+            </p>
+          )}
+        </div>
+      </button>
+
+      {/* Delete button */}
+      <button
+        onClick={e => { e.stopPropagation(); onDelete(expense) }}
+        className={cn(
+          'shrink-0 p-1.5 rounded-md transition-all duration-200',
+          'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
+          'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100',
+        )}
+        aria-label="Remover despesa"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
+}
+
 // ─── Show row (expandable) ────────────────────────────────────────────────────
 
 function ShowRow({
@@ -368,36 +602,58 @@ function ShowRow({
   queryClient: ReturnType<typeof useQueryClient>
   onDataChange: () => void
 }) {
-  const [open, setOpen]           = useState(false)
+  const [open, setOpen]             = useState(false)
+  const [activeTab, setActiveTab]   = useState<'pagamentos' | 'despesas'>('pagamentos')
   const [addingPlan, setAddingPlan] = useState(false)
+  const [addingExpense, setAddingExpense] = useState(false)
   const { toast } = useToast()
 
-  const payStatus = getPaymentStatus(show.payments)
-  const config    = STATUS_CONFIG[payStatus]
+  const payStatus  = getPaymentStatus(show.payments)
+  const config     = STATUS_CONFIG[payStatus]
   const StatusIcon = config.icon
 
-  const totalPaid    = show.payments.filter(p => p.paid_at).reduce((s, p) => s + p.amount, 0)
-  const totalPending = show.payments.filter(p => !p.paid_at).reduce((s, p) => s + p.amount, 0)
+  const totalPaid     = show.payments.filter(p => p.paid_at).reduce((s, p) => s + p.amount, 0)
+  const totalPending  = show.payments.filter(p => !p.paid_at).reduce((s, p) => s + p.amount, 0)
+  const totalExpenses = (show.expenses ?? []).reduce((s, e) => s + e.amount, 0)
+  const resultado     = show.cache_value - totalExpenses
 
-  // Optimistically update a single payment in the cache — zero delay
+  // ── Optimistic: payments ──────────────────────────────────────────────────
   const patchCachePayment = useCallback((paymentId: string, newPaidAt: string | null) => {
     queryClient.setQueriesData<FinanceiroShow[]>(
       { queryKey: ['financeiro', orgId], exact: false },
-      (old) => {
-        if (!old) return old
-        return old.map(s => ({
-          ...s,
-          payments: s.payments.map(p =>
-            p.id === paymentId ? { ...p, paid_at: newPaidAt } : p
-          ),
-        }))
-      }
+      (old) => old ? old.map(s => ({
+        ...s,
+        payments: s.payments.map(p => p.id === paymentId ? { ...p, paid_at: newPaidAt } : p),
+      })) : old
     )
   }, [queryClient, orgId])
 
+  // ── Optimistic: expenses ──────────────────────────────────────────────────
+  const patchCacheExpense = useCallback((expenseId: string, newPaid: boolean, newPaidAt: string | null) => {
+    queryClient.setQueriesData<FinanceiroShow[]>(
+      { queryKey: ['financeiro', orgId], exact: false },
+      (old) => old ? old.map(s => ({
+        ...s,
+        expenses: (s.expenses ?? []).map(e =>
+          e.id === expenseId ? { ...e, paid: newPaid, paid_at: newPaidAt } : e
+        ),
+      })) : old
+    )
+  }, [queryClient, orgId])
+
+  const patchCacheDeleteExpense = useCallback((expenseId: string) => {
+    queryClient.setQueriesData<FinanceiroShow[]>(
+      { queryKey: ['financeiro', orgId], exact: false },
+      (old) => old ? old.map(s => ({
+        ...s,
+        expenses: (s.expenses ?? []).filter(e => e.id !== expenseId),
+      })) : old
+    )
+  }, [queryClient, orgId])
+
+  // ── Handlers: payments ────────────────────────────────────────────────────
   const handleTogglePaid = useCallback(async (payment: ShowPayment) => {
     const newPaidAt = payment.paid_at ? null : new Date().toISOString()
-    // Apply optimistic update immediately — UI responds at once
     patchCachePayment(payment.id, newPaidAt)
     try {
       const res = await fetch(`/api/payments/${payment.id}`, {
@@ -406,10 +662,8 @@ function ShowRow({
         body: JSON.stringify({ paid_at: newPaidAt }),
       })
       if (!res.ok) throw new Error()
-      // Sync cache with server response in background (no visible re-render)
       onDataChange()
     } catch {
-      // Revert optimistic update on error
       patchCachePayment(payment.id, payment.paid_at)
       toast({ title: 'Erro', description: 'Não foi possível atualizar o pagamento.', variant: 'destructive' })
     }
@@ -426,11 +680,45 @@ function ShowRow({
     }
   }, [onDataChange, toast])
 
+  // ── Handlers: expenses ────────────────────────────────────────────────────
+  const handleToggleExpensePaid = useCallback(async (expense: ShowExpense) => {
+    const newPaid   = !expense.paid
+    const newPaidAt = newPaid ? new Date().toISOString() : null
+    patchCacheExpense(expense.id, newPaid, newPaidAt)
+    try {
+      const res = await fetch(`/api/expenses/${expense.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paid: newPaid }),
+      })
+      if (!res.ok) throw new Error()
+      onDataChange()
+    } catch {
+      patchCacheExpense(expense.id, expense.paid, expense.paid_at)
+      toast({ title: 'Erro', description: 'Não foi possível atualizar a despesa.', variant: 'destructive' })
+    }
+  }, [patchCacheExpense, onDataChange, toast])
+
+  const handleDeleteExpense = useCallback(async (expense: ShowExpense) => {
+    patchCacheDeleteExpense(expense.id)
+    try {
+      const res = await fetch(`/api/expenses/${expense.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast({ title: 'Despesa removida' })
+      onDataChange()
+    } catch {
+      onDataChange() // refetch to restore
+      toast({ title: 'Erro', description: 'Não foi possível remover a despesa.', variant: 'destructive' })
+    }
+  }, [patchCacheDeleteExpense, onDataChange, toast])
+
+  const expenses = show.expenses ?? []
+
   return (
     <div className="border-b border-border/50 last:border-b-0">
       {/* Main row */}
       <button
-        onClick={() => { setOpen(v => !v); setAddingPlan(false) }}
+        onClick={() => { setOpen(v => !v); setAddingPlan(false); setAddingExpense(false) }}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors text-left"
       >
         {open
@@ -461,12 +749,16 @@ function ShowRow({
             {show.artists?.name && (
               <span className="text-[11px] text-muted-foreground">{show.artists.name}</span>
             )}
+            {expenses.length > 0 && (
+              <span className="text-[11px] text-muted-foreground/60">
+                · {formatCurrency(totalExpenses)} em despesas
+              </span>
+            )}
           </div>
         </div>
 
         {/* Right side */}
         <div className="flex items-center gap-3 shrink-0">
-          {/* Cache vs payments summary */}
           <div className="hidden sm:flex flex-col items-end">
             {show.cache_value > 0 && (
               <span className="text-xs font-semibold tabular-nums">
@@ -497,8 +789,9 @@ function ShowRow({
       {open && (
         <div className="px-4 pb-3">
           <div className="ml-7 pl-3 border-l border-border/60">
-            {/* Link to show detail */}
-            <div className="flex items-center justify-between mb-2">
+
+            {/* Link + tab bar */}
+            <div className="flex items-center justify-between mb-1">
               <Link
                 href={`/agenda/${show.id}`}
                 className="text-[11px] text-muted-foreground hover:text-primary transition-colors"
@@ -506,59 +799,170 @@ function ShowRow({
               >
                 Ver show completo →
               </Link>
-              {show.payments.length > 0 && (
-                <button
-                  onClick={() => setAddingPlan(v => !v)}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-                >
-                  <Plus className="h-3 w-3" />
-                  Adicionar parcela
-                </button>
-              )}
             </div>
 
-            {/* Installments */}
-            {show.payments.length > 0 ? (
-              <div className="space-y-0.5">
-                {show.payments.map(p => (
-                  <InstallmentRow
-                    key={p.id}
-                    payment={p}
-                    onTogglePaid={handleTogglePaid}
-                    onDelete={handleDelete}
-                  />
-                ))}
-                {/* Totals */}
-                {show.payments.length > 1 && (
-                  <div className="flex items-center justify-between pt-1.5 mt-1.5 border-t border-border/50 text-[11px]">
-                    <span className="text-muted-foreground">Total do plano</span>
-                    <span className="font-semibold tabular-nums">
-                      {formatCurrency(show.payments.reduce((s, p) => s + p.amount, 0))}
-                    </span>
+            {/* Tabs */}
+            <div className="flex items-center gap-0 border-b border-border/50 mb-2">
+              <button
+                onClick={() => { setActiveTab('pagamentos'); setAddingExpense(false) }}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium border-b-2 -mb-px transition-colors',
+                  activeTab === 'pagamentos'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <CreditCard className="h-3 w-3" />
+                Pagamentos
+                {show.payments.length > 0 && (
+                  <span className="rounded-full bg-muted px-1 text-[10px] font-normal">{show.payments.length}</span>
+                )}
+              </button>
+              <button
+                onClick={() => { setActiveTab('despesas'); setAddingPlan(false) }}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium border-b-2 -mb-px transition-colors',
+                  activeTab === 'despesas'
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Receipt className="h-3 w-3" />
+                Despesas
+                {expenses.length > 0 && (
+                  <span className="rounded-full bg-muted px-1 text-[10px] font-normal">{expenses.length}</span>
+                )}
+              </button>
+            </div>
+
+            {/* ── Pagamentos tab ── */}
+            {activeTab === 'pagamentos' && (
+              <>
+                <div className="flex justify-end mb-1">
+                  {show.payments.length > 0 && (
+                    <button
+                      onClick={() => setAddingPlan(v => !v)}
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Adicionar parcela
+                    </button>
+                  )}
+                </div>
+
+                {show.payments.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {show.payments.map(p => (
+                      <InstallmentRow
+                        key={p.id}
+                        payment={p}
+                        onTogglePaid={handleTogglePaid}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+                    {show.payments.length > 1 && (
+                      <div className="flex items-center justify-between pt-1.5 mt-1.5 border-t border-border/50 text-[11px]">
+                        <span className="text-muted-foreground">Total do plano</span>
+                        <span className="font-semibold tabular-nums">
+                          {formatCurrency(show.payments.reduce((s, p) => s + p.amount, 0))}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-2">
+                    {!addingPlan && (
+                      <button
+                        onClick={() => setAddingPlan(true)}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Criar plano de pagamento
+                      </button>
+                    )}
                   </div>
                 )}
-              </div>
-            ) : (
-              <div className="py-2">
-                {!addingPlan && (
-                  <button
-                    onClick={() => setAddingPlan(true)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Criar plano de pagamento
-                  </button>
+
+                {addingPlan && (
+                  <AddPaymentPlan
+                    show={show}
+                    onClose={() => setAddingPlan(false)}
+                    onSaved={onDataChange}
+                  />
                 )}
+              </>
+            )}
+
+            {/* ── Despesas tab ── */}
+            {activeTab === 'despesas' && (
+              <>
+                <div className="flex justify-end mb-1">
+                  <button
+                    onClick={() => setAddingExpense(v => !v)}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Adicionar despesa
+                  </button>
+                </div>
+
+                {expenses.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {expenses.map(e => (
+                      <ExpenseRow
+                        key={e.id}
+                        expense={e}
+                        onTogglePaid={handleToggleExpensePaid}
+                        onDelete={handleDeleteExpense}
+                      />
+                    ))}
+                    <div className="flex items-center justify-between pt-1.5 mt-1.5 border-t border-border/50 text-[11px]">
+                      <span className="text-muted-foreground">Total despesas</span>
+                      <span className="font-semibold tabular-nums text-foreground">
+                        {formatCurrency(totalExpenses)}
+                      </span>
+                    </div>
+                  </div>
+                ) : !addingExpense ? (
+                  <div className="py-2">
+                    <button
+                      onClick={() => setAddingExpense(true)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Adicionar primeira despesa
+                    </button>
+                  </div>
+                ) : null}
+
+                {addingExpense && (
+                  <AddExpenseForm
+                    showId={show.id}
+                    onClose={() => setAddingExpense(false)}
+                    onSaved={onDataChange}
+                  />
+                )}
+              </>
+            )}
+
+            {/* ── Resultado líquido ── */}
+            {show.cache_value > 0 && totalExpenses > 0 && (
+              <div className="mt-3 pt-2.5 border-t border-border/50 flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">Resultado líquido</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground/60 tabular-nums">
+                    {formatCurrency(show.cache_value)} − {formatCurrency(totalExpenses)}
+                  </span>
+                  <span className={cn(
+                    'text-xs font-bold tabular-nums',
+                    resultado >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
+                  )}>
+                    {resultado >= 0 ? '+' : ''}{formatCurrency(resultado)}
+                  </span>
+                </div>
               </div>
             )}
 
-            {addingPlan && (
-              <AddPaymentPlan
-                show={show}
-                onClose={() => setAddingPlan(false)}
-                onSaved={onDataChange}
-              />
-            )}
           </div>
         </div>
       )}
@@ -577,10 +981,11 @@ function ArtistGroup({ artist, shows, orgId, queryClient, onDataChange }: {
 }) {
   const [open, setOpen] = useState(true)
 
-  const totalCache   = shows.reduce((s, sh) => s + (sh.cache_value || 0), 0)
-  const totalPaid    = shows.flatMap(s => s.payments).filter(p => p.paid_at).reduce((s, p) => s + p.amount, 0)
-  const totalPending = shows.flatMap(s => s.payments).filter(p => !p.paid_at).reduce((s, p) => s + p.amount, 0)
-  const overdue      = shows.flatMap(s => s.payments).filter(p => !p.paid_at && isBefore(parseISO(p.due_date), new Date()))
+  const totalCache    = shows.reduce((s, sh) => s + (sh.cache_value || 0), 0)
+  const totalPaid     = shows.flatMap(s => s.payments).filter(p => p.paid_at).reduce((s, p) => s + p.amount, 0)
+  const totalPending  = shows.flatMap(s => s.payments).filter(p => !p.paid_at).reduce((s, p) => s + p.amount, 0)
+  const totalExpenses = shows.flatMap(s => s.expenses ?? []).reduce((s, e) => s + e.amount, 0)
+  const overdue       = shows.flatMap(s => s.payments).filter(p => !p.paid_at && isBefore(parseISO(p.due_date), new Date()))
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -609,6 +1014,7 @@ function ArtistGroup({ artist, shows, orgId, queryClient, onDataChange }: {
             )}
             {totalPaid > 0 && <span className="text-emerald-600 dark:text-emerald-400 tabular-nums shrink-0">{formatCurrency(totalPaid)} pago</span>}
             {totalPending > 0 && <span className="tabular-nums shrink-0">{formatCurrency(totalPending)} pendente</span>}
+            {totalExpenses > 0 && <span className="tabular-nums text-muted-foreground/70 shrink-0">{formatCurrency(totalExpenses)} despesas</span>}
           </div>
         </div>
       </button>

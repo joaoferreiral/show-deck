@@ -174,6 +174,18 @@ export type ShowPayment = {
   created_at: string
 }
 
+export type ShowExpense = {
+  id: string
+  show_id: string
+  category: string
+  description: string | null
+  amount: number
+  paid: boolean
+  paid_at: string | null
+  notes: string | null
+  created_at: string
+}
+
 export type FinanceiroShow = {
   id: string
   title: string
@@ -185,6 +197,7 @@ export type FinanceiroShow = {
   artist_id: string
   artists: { id: string; name: string; color: string; photo_url: string | null } | null
   payments: ShowPayment[]
+  expenses: ShowExpense[]
 }
 
 export function useFinanceiro(orgId: string, from?: string, to?: string, artistId?: string) {

@@ -19,6 +19,9 @@ export type ActivityAction =
   | 'payment.unpaid'
   | 'payment.updated'
   | 'payment.deleted'
+  | 'expense.created'
+  | 'expense.updated'
+  | 'expense.deleted'
 
 interface LogParams {
   orgId: string

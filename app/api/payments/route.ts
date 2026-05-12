@@ -61,30 +61,42 @@ export async function GET(req: Request) {
 
   if (!shows?.length) return NextResponse.json({ shows: [] })
 
-  // Fetch all payments for these shows in one query
   const showIds = (shows as { id: string }[]).map(s => s.id)
-  const { data: payments, error: paymentsError } = await sb
-    .from('show_payments')
-    .select('id, show_id, amount, due_date, paid_at, description, created_at')
-    .in('show_id', showIds)
-    .order('due_date', { ascending: true })
 
-  if (paymentsError) {
-    console.error('[api/payments GET] payments error:', paymentsError.message)
-    return NextResponse.json({ error: paymentsError.message }, { status: 500 })
+  // Fetch payments + expenses in parallel
+  const [paymentsRes, expensesRes] = await Promise.all([
+    sb
+      .from('show_payments')
+      .select('id, show_id, amount, due_date, paid_at, description, created_at')
+      .in('show_id', showIds)
+      .order('due_date', { ascending: true }),
+    sb
+      .from('expenses')
+      .select('id, show_id, category, description, amount, paid, paid_at, notes, created_at')
+      .in('show_id', showIds)
+      .order('created_at', { ascending: true }),
+  ])
+
+  if (paymentsRes.error) {
+    console.error('[api/payments GET] payments error:', paymentsRes.error.message)
+    return NextResponse.json({ error: paymentsRes.error.message }, { status: 500 })
+  }
+  if (expensesRes.error) {
+    console.error('[api/payments GET] expenses error:', expensesRes.error.message)
+    return NextResponse.json({ error: expensesRes.error.message }, { status: 500 })
   }
 
-  // Group payments by show_id
-  const paymentsByShow = ((payments ?? []) as {
-    id: string
-    show_id: string
-    amount: number
-    due_date: string
-    paid_at: string | null
-    description: string | null
-    created_at: string
-  }[]).reduce<Record<string, typeof payments>>((acc, p) => {
+  // Group by show_id
+  type RawPayment = { id: string; show_id: string; amount: number; due_date: string; paid_at: string | null; description: string | null; created_at: string }
+  type RawExpense = { id: string; show_id: string; category: string; description: string | null; amount: number; paid: boolean; paid_at: string | null; notes: string | null; created_at: string }
+
+  const paymentsByShow = ((paymentsRes.data ?? []) as RawPayment[]).reduce<Record<string, RawPayment[]>>((acc, p) => {
     ;(acc[p.show_id] ??= []).push(p)
+    return acc
+  }, {})
+
+  const expensesByShow = ((expensesRes.data ?? []) as RawExpense[]).reduce<Record<string, RawExpense[]>>((acc, e) => {
+    ;(acc[e.show_id] ??= []).push(e)
     return acc
   }, {})
 
@@ -102,6 +114,7 @@ export async function GET(req: Request) {
   }[]).map(show => ({
     ...show,
     payments: paymentsByShow[show.id] ?? [],
+    expenses: expensesByShow[show.id] ?? [],
   }))
 
   return NextResponse.json({ shows: result })
