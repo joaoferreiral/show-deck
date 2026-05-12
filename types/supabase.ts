@@ -10,7 +10,7 @@ export type ShowStatus = 'pre_reserva' | 'confirmado' | 'contrato_enviado' | 'co
 export type MemberRole = 'owner' | 'empresario' | 'financeiro' | 'contratos' | 'marketing' | 'producao' | 'viewer'
 export type PlanType = 'trial' | 'starter' | 'pro' | 'enterprise'
 export type ReceivableStatus = 'pendente' | 'parcial' | 'pago' | 'atrasado'
-export type ExpenseCategory = 'logistica' | 'hospedagem' | 'comissao' | 'banda' | 'alimentacao' | 'equipamento' | 'outros'
+export type ExpenseCategory = 'logistica' | 'hospedagem' | 'pirotecnia' | 'banda' | 'alimentacao' | 'equipamento' | 'outros'
 export type AttachmentType = 'contrato' | 'rider' | 'mapa_palco' | 'outros'
 
 export interface Database {

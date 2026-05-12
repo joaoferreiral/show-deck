@@ -19,7 +19,7 @@ import {
   Plus, Trash2, LayoutList, Users, TrendingUp,
   DollarSign, AlertTriangle, Ban, Download, Loader2,
   CreditCard, Receipt,
-  Truck, Building2, Percent, Music2, Utensils, Wrench, MoreHorizontal,
+  Truck, Building2, Sparkles, Music2, Utensils, Wrench, MoreHorizontal,
 } from 'lucide-react'
 import {
   startOfYear, endOfYear, startOfMonth, endOfMonth,
@@ -58,12 +58,12 @@ const STATUS_CONFIG: Record<PaymentStatus, {
 
 // ─── Expense category config ──────────────────────────────────────────────────
 
-type ExpenseCategory = 'logistica' | 'hospedagem' | 'comissao' | 'banda' | 'alimentacao' | 'equipamento' | 'outros'
+type ExpenseCategory = 'logistica' | 'hospedagem' | 'pirotecnia' | 'banda' | 'alimentacao' | 'equipamento' | 'outros'
 
 const EXPENSE_CATEGORY_CONFIG: Record<ExpenseCategory, { label: string; icon: React.ElementType }> = {
   logistica:    { label: 'Logística',    icon: Truck          },
   hospedagem:   { label: 'Hospedagem',   icon: Building2      },
-  comissao:     { label: 'Comissão',     icon: Percent        },
+  pirotecnia:   { label: 'Pirotecnia',   icon: Sparkles       },
   banda:        { label: 'Banda',        icon: Music2         },
   alimentacao:  { label: 'Alimentação',  icon: Utensils       },
   equipamento:  { label: 'Equipamento',  icon: Wrench         },
