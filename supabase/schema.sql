@@ -42,7 +42,7 @@ create type receivable_status as enum (
 create type expense_category as enum (
   'logistica',
   'hospedagem',
-  'comissao',
+  'pirotecnia',
   'banda',
   'alimentacao',
   'equipamento',

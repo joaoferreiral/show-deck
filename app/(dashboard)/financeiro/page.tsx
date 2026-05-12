@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import {
   startOfYear, endOfYear, startOfMonth, endOfMonth,
-  addMonths, format, isBefore, parseISO,
+  addMonths, format, isBefore, parseISO, parse, isValid,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
@@ -206,8 +206,8 @@ function ExpenseRow({
   const [editingDate, setEditingDate] = useState(false)
   const [dateVal, setDateVal] = useState(
     expense.paid_at
-      ? format(parseISO(expense.paid_at), 'yyyy-MM-dd')
-      : format(new Date(), 'yyyy-MM-dd')
+      ? format(parseISO(expense.paid_at), 'dd/MM/yyyy')
+      : format(new Date(), 'dd/MM/yyyy')
   )
 
   // Keep dateVal in sync when expense.paid_at changes externally (e.g. after toggle)
@@ -215,22 +215,34 @@ function ExpenseRow({
     if (!editingDate) {
       setDateVal(
         expense.paid_at
-          ? format(parseISO(expense.paid_at), 'yyyy-MM-dd')
-          : format(new Date(), 'yyyy-MM-dd')
+          ? format(parseISO(expense.paid_at), 'dd/MM/yyyy')
+          : format(new Date(), 'dd/MM/yyyy')
       )
     }
   }, [expense.paid_at, editingDate])
+
+  function handleDateInput(e: React.ChangeEvent<HTMLInputElement>) {
+    let raw = e.target.value.replace(/\D/g, '').slice(0, 8)
+    if (raw.length > 4) raw = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4)
+    else if (raw.length > 2) raw = raw.slice(0, 2) + '/' + raw.slice(2)
+    setDateVal(raw)
+  }
+
+  function commitDate() {
+    try {
+      const parsed = parse(dateVal, 'dd/MM/yyyy', new Date())
+      if (isValid(parsed)) {
+        onUpdatePaidAt(expense, format(parsed, 'yyyy-MM-dd'))
+      }
+    } catch { /* ignore */ }
+    setEditingDate(false)
+  }
 
   const isPaid    = expense.paid
   const catKey    = (expense.category as ExpenseCategory) in EXPENSE_CATEGORY_CONFIG
     ? expense.category as ExpenseCategory : 'outros'
   const catConfig = EXPENSE_CATEGORY_CONFIG[catKey]
   const CatIcon   = catConfig.icon
-
-  function commitDate() {
-    onUpdatePaidAt(expense, dateVal)
-    setEditingDate(false)
-  }
 
   return (
     <div className="group flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-muted/40 transition-colors">
@@ -282,13 +294,15 @@ function ExpenseRow({
       {isPaid ? (
         editingDate ? (
           <input
-            type="date"
+            type="text"
             value={dateVal}
-            onChange={e => setDateVal(e.target.value)}
+            onChange={handleDateInput}
             onBlur={commitDate}
             onKeyDown={e => { if (e.key === 'Enter') commitDate(); if (e.key === 'Escape') setEditingDate(false) }}
+            placeholder="dd/mm/aaaa"
+            maxLength={10}
             autoFocus
-            className="text-[11px] tabular-nums border-0 border-b border-primary bg-transparent outline-none w-32 text-right"
+            className="text-[11px] tabular-nums border-0 border-b border-primary bg-transparent outline-none w-28 text-right"
           />
         ) : (
           <button
@@ -327,8 +341,15 @@ function AddExpenseForm({
   const [description, setDescription] = useState('')
   const [amount, setAmount]           = useState('')
   const [paid, setPaid]               = useState(false)
-  const [paidDate, setPaidDate]       = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [paidDate, setPaidDate]       = useState(format(new Date(), 'dd/MM/yyyy'))
   const [saving, setSaving]           = useState(false)
+
+  function handlePaidDateInput(e: React.ChangeEvent<HTMLInputElement>) {
+    let raw = e.target.value.replace(/\D/g, '').slice(0, 8)
+    if (raw.length > 4) raw = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4)
+    else if (raw.length > 2) raw = raw.slice(0, 2) + '/' + raw.slice(2)
+    setPaidDate(raw)
+  }
 
   async function handleSave() {
     const parsedAmount = parseFloat(amount.replace(',', '.'))
@@ -345,7 +366,13 @@ function AddExpenseForm({
           show_id: showId, category,
           description: description.trim() || null,
           amount: parsedAmount, paid,
-          paid_at: paid && paidDate ? new Date(`${paidDate}T12:00:00`).toISOString() : null,
+          paid_at: paid && paidDate ? (() => {
+            try {
+              const p = parse(paidDate, 'dd/MM/yyyy', new Date())
+              if (isValid(p)) return new Date(p.getFullYear(), p.getMonth(), p.getDate(), 12).toISOString()
+            } catch { /* ignore */ }
+            return new Date().toISOString()
+          })() : null,
         }),
       })
       if (!res.ok) throw new Error()
@@ -401,10 +428,12 @@ function AddExpenseForm({
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-muted-foreground">em</span>
             <Input
-              type="date"
+              type="text"
               value={paidDate}
-              onChange={e => setPaidDate(e.target.value)}
-              className="h-7 text-xs w-36"
+              onChange={handlePaidDateInput}
+              placeholder="dd/mm/aaaa"
+              maxLength={10}
+              className="h-7 text-xs w-32"
             />
           </div>
         )}
@@ -861,9 +890,7 @@ function ArtistGroup({
           : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
         }
         <Avatar className="h-7 w-7 shrink-0">
-          {artist.photo_url && <AvatarFallback style={{ backgroundColor: artist.color + '22', color: artist.color }} className="text-[10px] font-bold">
-            {initials(artist.name)}
-          </AvatarFallback>}
+          <AvatarImage src={artist.photo_url ?? undefined} alt={artist.name} />
           <AvatarFallback style={{ backgroundColor: artist.color + '22', color: artist.color }} className="text-[10px] font-bold">
             {initials(artist.name)}
           </AvatarFallback>
@@ -972,11 +999,15 @@ export default function FinanceiroPage() {
 
       const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const now   = new Date()
-      const brand: [number, number, number] = [44, 41, 38]
-      const gray:  [number, number, number] = [100, 97, 93]
-      const green: [number, number, number] = [22, 163, 74]
-      const red:   [number, number, number] = [220, 38, 38]
-      const blue:  [number, number, number] = [37, 99, 235]
+      const brand:     [number, number, number] = [44, 41, 38]
+      const gray:      [number, number, number] = [100, 97, 93]
+      const green:     [number, number, number] = [22, 163, 74]
+      const red:       [number, number, number] = [220, 38, 38]
+      const blue:      [number, number, number] = [37, 99, 235]
+      const blueHead:  [number, number, number] = [219, 234, 254]   // blue-100
+      const blueText:  [number, number, number] = [30, 64, 175]     // blue-800
+      const amberHead: [number, number, number] = [254, 243, 199]   // amber-100
+      const amberText: [number, number, number] = [146, 64, 14]     // amber-800
       const pageW = doc.internal.pageSize.getWidth()
 
       doc.setFillColor(...brand)
@@ -1069,7 +1100,7 @@ export default function FinanceiroPage() {
             head: [['Descrição', 'Vencimento', 'Status', 'Valor']],
             body: rows,
             styles: { fontSize: 7.5, cellPadding: { top: 1.2, bottom: 1.2, left: 4, right: 3 } },
-            headStyles: { fillColor: [230, 228, 224] as [number,number,number], textColor: brand, fontStyle: 'bold', fontSize: 7.5 },
+            headStyles: { fillColor: blueHead, textColor: blueText, fontStyle: 'bold', fontSize: 7.5 },
             bodyStyles: { textColor: gray },
             margin: { left: 20, right: 14 }, tableWidth: pageW - 34,
             columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 26 }, 2: { cellWidth: 30 }, 3: { cellWidth: 32, halign: 'right' } },
@@ -1105,7 +1136,7 @@ export default function FinanceiroPage() {
             head: [['Categoria', 'Descrição', 'Status', 'Valor']],
             body: expRows,
             styles: { fontSize: 7.5, cellPadding: { top: 1.2, bottom: 1.2, left: 4, right: 3 } },
-            headStyles: { fillColor: [243, 240, 235] as [number,number,number], textColor: gray, fontStyle: 'bold', fontSize: 7.5 },
+            headStyles: { fillColor: amberHead, textColor: amberText, fontStyle: 'bold', fontSize: 7.5 },
             bodyStyles: { textColor: gray },
             margin: { left: 20, right: 14 }, tableWidth: pageW - 34,
             columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 32 }, 3: { cellWidth: 32, halign: 'right' } },
