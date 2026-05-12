@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from '@/components/providers/session-provider'
 import { useFinanceiro, useArtists } from '@/lib/hooks/queries'
@@ -209,6 +209,17 @@ function ExpenseRow({
       ? format(parseISO(expense.paid_at), 'yyyy-MM-dd')
       : format(new Date(), 'yyyy-MM-dd')
   )
+
+  // Keep dateVal in sync when expense.paid_at changes externally (e.g. after toggle)
+  useEffect(() => {
+    if (!editingDate) {
+      setDateVal(
+        expense.paid_at
+          ? format(parseISO(expense.paid_at), 'yyyy-MM-dd')
+          : format(new Date(), 'yyyy-MM-dd')
+      )
+    }
+  }, [expense.paid_at, editingDate])
 
   const isPaid    = expense.paid
   const catKey    = (expense.category as ExpenseCategory) in EXPENSE_CATEGORY_CONFIG
@@ -906,8 +917,12 @@ export default function FinanceiroPage() {
 
   const filteredShows = useMemo(() => {
     if (!shows) return []
-    if (filterStatus === 'todos') return shows
-    return shows.filter(s => getPaymentStatus(s.payments) === filterStatus)
+    const filtered = filterStatus === 'todos'
+      ? shows
+      : shows.filter(s => getPaymentStatus(s.payments) === filterStatus)
+    return [...filtered].sort((a, b) =>
+      new Date(a.start_at).getTime() - new Date(b.start_at).getTime()
+    )
   }, [shows, filterStatus])
 
   // ── Metrics ──────────────────────────────────────────────────────────────
@@ -938,7 +953,9 @@ export default function FinanceiroPage() {
       if (!map.has(key)) map.set(key, { artist: show.artists as { id: string; name: string; color: string; photo_url: string | null }, shows: [] })
       map.get(key)!.shows.push(show)
     })
-    return Array.from(map.values()).sort((a, b) => a.artist.name.localeCompare(b.artist.name))
+    return Array.from(map.values())
+      .sort((a, b) => a.artist.name.localeCompare(b.artist.name))
+      .map(g => ({ ...g, shows: [...g.shows].sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()) }))
   }, [filteredShows])
 
   const artists = artistsData?.artists ?? []

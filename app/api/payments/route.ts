@@ -46,7 +46,7 @@ export async function GET(req: Request) {
     .select('id, title, status, start_at, city, state, cache_value, artist_id, artists(id, name, color, photo_url)')
     .eq('org_id', orgId)
     .neq('status', 'cancelado')
-    .order('start_at', { ascending: false })
+    .order('start_at', { ascending: true })
 
   if (from)      showsQuery = showsQuery.gte('start_at', from)
   if (to)        showsQuery = showsQuery.lte('start_at', to)
