@@ -48,12 +48,13 @@ export async function PATCH(
   if (!existing) return NextResponse.json({ error: 'Despesa não encontrada' }, { status: 404 })
 
   const body = await req.json()
-  const { category, description, amount, paid, notes } = body as {
+  const { category, description, amount, paid, notes, paid_at } = body as {
     category?: ExpenseCategory
     description?: string | null
     amount?: number
     paid?: boolean
     notes?: string | null
+    paid_at?: string | null
   }
 
   const updates: Record<string, unknown> = {}
@@ -63,7 +64,9 @@ export async function PATCH(
   if ('notes' in body)       updates.notes       = notes
   if ('paid' in body) {
     updates.paid    = paid
-    updates.paid_at = paid ? new Date().toISOString() : null
+    updates.paid_at = paid ? (paid_at ?? new Date().toISOString()) : null
+  } else if ('paid_at' in body) {
+    updates.paid_at = paid_at
   }
 
   if (!Object.keys(updates).length) {

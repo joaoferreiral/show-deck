@@ -133,11 +133,12 @@ function AddExpenseForm({
   onSaved: () => void
 }) {
   const { toast } = useToast()
-  const [category, setCategory]     = useState<ExpenseCategory>('outros')
+  const [category, setCategory]       = useState<ExpenseCategory>('outros')
   const [description, setDescription] = useState('')
-  const [amount, setAmount]         = useState('')
-  const [paid, setPaid]             = useState(false)
-  const [saving, setSaving]         = useState(false)
+  const [amount, setAmount]           = useState('')
+  const [paid, setPaid]               = useState(false)
+  const [paidDate, setPaidDate]       = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [saving, setSaving]           = useState(false)
 
   async function handleSave() {
     const parsedAmount = parseFloat(amount.replace(',', '.'))
@@ -156,6 +157,7 @@ function AddExpenseForm({
           description: description.trim() || null,
           amount: parsedAmount,
           paid,
+          paid_at: paid && paidDate ? new Date(`${paidDate}T12:00:00`).toISOString() : null,
         }),
       })
       if (!res.ok) throw new Error('Erro ao salvar')
@@ -210,15 +212,28 @@ function AddExpenseForm({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={paid}
-          onChange={e => setPaid(e.target.checked)}
-          className="rounded border-border"
-        />
-        <span className="text-xs text-muted-foreground">Marcar como já paga</span>
-      </label>
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={paid}
+            onChange={e => setPaid(e.target.checked)}
+            className="rounded border-border"
+          />
+          <span className="text-xs text-muted-foreground">Marcar como já paga</span>
+        </label>
+        {paid && (
+          <div className="ml-6 space-y-1">
+            <Label className="text-xs">Data do pagamento</Label>
+            <Input
+              type="date"
+              value={paidDate}
+              onChange={e => setPaidDate(e.target.value)}
+              className="h-8 text-sm w-full max-w-[180px]"
+            />
+          </div>
+        )}
+      </div>
 
       <div className="flex gap-2 pt-1">
         <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 text-xs">
@@ -562,14 +577,16 @@ function ExpenseRow({
             </span>
           </div>
 
-          {expense.notes && (
+          {(isPaid && expense.paid_at) || expense.notes ? (
             <p className={cn(
               'text-[11px] truncate transition-colors duration-300',
               isPaid ? 'text-muted-foreground/40' : 'text-muted-foreground/60',
             )}>
-              {expense.notes}
+              {isPaid && expense.paid_at
+                ? `Paga em ${formatDate(expense.paid_at)}`
+                : expense.notes}
             </p>
-          )}
+          ) : null}
         </div>
       </button>
 
@@ -1148,12 +1165,16 @@ export default function FinanceiroPage() {
       doc.text('Resumo', 14, y)
 
       y += 6
+      const totalExpensesPDF  = filteredShows.flatMap(s => s.expenses ?? []).reduce((s, e) => s + e.amount, 0)
+      const resultadoLiquidoPDF = kpis.totalPago - totalExpensesPDF
       const kpiData = [
-        ['A Receber',       formatCurrency(kpis.totalPendente)],
-        ['Recebido',        formatCurrency(kpis.totalPago)],
-        ['Em Atraso',       formatCurrency(kpis.totalAtrasado)],
-        ['Shows sem Plano', String(kpis.semPlano)],
-        ['Total de Shows',  String(filteredShows.length)],
+        ['A Receber',         formatCurrency(kpis.totalPendente)],
+        ['Recebido',          formatCurrency(kpis.totalPago)],
+        ['Em Atraso',         formatCurrency(kpis.totalAtrasado)],
+        ['Total Despesas',    formatCurrency(totalExpensesPDF)],
+        ['Resultado Líquido', formatCurrency(resultadoLiquidoPDF)],
+        ['Shows sem Plano',   String(kpis.semPlano)],
+        ['Total de Shows',    String(filteredShows.length)],
       ]
       autoTable(doc, {
         startY: y,
@@ -1262,6 +1283,67 @@ export default function FinanceiroPage() {
           doc.setFont('helvetica', 'italic')
           doc.text('Sem plano de pagamento cadastrado.', 22, y + 4)
           y += 8
+        }
+
+        // ── Despesas do show ──────────────────────────────────────────────────
+        const showExpenses = show.expenses ?? []
+        if (showExpenses.length > 0) {
+          const totalShowExpenses = showExpenses.reduce((s, e) => s + e.amount, 0)
+          const expenseRows: string[][] = showExpenses.map(e => [
+            EXPENSE_CATEGORY_CONFIG[e.category as ExpenseCategory]?.label ?? e.category,
+            e.description ?? '—',
+            e.paid && e.paid_at
+              ? `Paga em ${format(new Date(e.paid_at), 'dd/MM/yyyy')}`
+              : e.paid ? 'Paga' : 'Pendente',
+            formatCurrency(e.amount),
+          ])
+          expenseRows.push(['', '', 'Total despesas', formatCurrency(totalShowExpenses)])
+
+          autoTable(doc, {
+            startY: y,
+            head: [['Categoria', 'Descrição', 'Status', 'Valor']],
+            body: expenseRows,
+            styles: { fontSize: 7.5, cellPadding: { top: 1.2, bottom: 1.2, left: 4, right: 3 } },
+            headStyles: { fillColor: [243, 240, 235], textColor: gray, fontStyle: 'bold', fontSize: 7.5 },
+            bodyStyles: { textColor: gray },
+            margin: { left: 20, right: 14 },
+            tableWidth: pageW - 34,
+            columnStyles: {
+              0: { cellWidth: 28 },
+              1: { cellWidth: 'auto' },
+              2: { cellWidth: 32 },
+              3: { cellWidth: 32, halign: 'right' },
+            },
+            didParseCell(data) {
+              if (data.section === 'body' && data.column.index === 2) {
+                const v = String(data.cell.raw)
+                if (v.startsWith('Paga')) data.cell.styles.textColor = green
+                else if (v === 'Pendente') data.cell.styles.textColor = blue
+              }
+              // total row — last row bold
+              if (data.section === 'body' && data.row.index === expenseRows.length - 1) {
+                data.cell.styles.fontStyle = 'bold'
+                data.cell.styles.textColor = brand
+              }
+            },
+          })
+          y = (doc as any).lastAutoTable.finalY
+
+          // Resultado líquido do show
+          if (show.cache_value > 0) {
+            const resultado = show.cache_value - totalShowExpenses
+            y += 3
+            doc.setFontSize(7.5)
+            doc.setFont('helvetica', 'bold')
+            doc.setTextColor(...(resultado >= 0 ? green : red))
+            doc.text(
+              `Resultado líquido: ${resultado >= 0 ? '+' : ''}${formatCurrency(resultado)}`,
+              pageW - 14, y, { align: 'right' }
+            )
+            y += 5
+          } else {
+            y += 3
+          }
         }
 
         // page break buffer

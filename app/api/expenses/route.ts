@@ -65,13 +65,14 @@ export async function POST(req: Request) {
   if (!orgId) return NextResponse.json({ error: 'Sem organização' }, { status: 403 })
 
   const body = await req.json()
-  const { show_id, category, description, amount, paid, notes } = body as {
+  const { show_id, category, description, amount, paid, notes, paid_at } = body as {
     show_id: string
     category: ExpenseCategory
     description?: string
     amount: number
     paid?: boolean
     notes?: string
+    paid_at?: string | null
   }
 
   if (!show_id)  return NextResponse.json({ error: 'show_id é obrigatório' }, { status: 400 })
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
       description: description ?? null,
       amount,
       paid:        paid ?? false,
-      paid_at:     paid ? new Date().toISOString() : null,
+      paid_at:     paid ? (paid_at ?? new Date().toISOString()) : null,
       notes:       notes ?? null,
     })
     .select()
