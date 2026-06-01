@@ -25,9 +25,13 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
+  // Use getSession() here (reads JWT from cookie, no network call) to avoid
+  // MIDDLEWARE_INVOCATION_TIMEOUT on Vercel Edge. getUser() (server-validated)
+  // is used inside API routes and Server Components where it's safe.
   const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    data: { session },
+  } = await supabase.auth.getSession()
+  const user = session?.user ?? null
 
   const { pathname } = request.nextUrl
 
