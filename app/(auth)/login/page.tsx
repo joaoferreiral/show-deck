@@ -88,6 +88,12 @@ export default function LoginPage() {
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Entrar
           </Button>
+
+          <div className="text-right">
+            <Link href="/reset-password" className="text-xs text-muted-foreground hover:text-primary transition-colors">
+              Esqueceu a senha?
+            </Link>
+          </div>
         </form>
 
         <div className="relative">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useSession } from '@/components/providers/session-provider'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/use-toast'
@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {
   Save, Loader2, Sun, Moon, Monitor, LogOut, Shield,
-  Building2, Camera, Check, Trash2, TriangleAlert, DoorOpen,
+  Building2, Camera, Check, Trash2, TriangleAlert, DoorOpen, ArrowLeftRight,
 } from 'lucide-react'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -66,6 +66,25 @@ export default function ConfiguracoesPage() {
   const [orgSaved, setOrgSaved]     = useState(false)
   const [deletingOrg, setDeletingOrg] = useState(false)
   const [leavingOrg, setLeavingOrg]   = useState(false)
+
+  // Transfer ownership state
+  type OrgMember = { user_id: string; role: string; profiles?: { full_name: string | null; email: string } | null }
+  const [members, setMembers]           = useState<OrgMember[]>([])
+  const [selectedNewOwner, setSelectedNewOwner] = useState('')
+  const [transferring, setTransferring] = useState(false)
+
+  useEffect(() => {
+    if (userRole !== 'owner') return
+    const supabase = createClient() as any
+    supabase
+      .from('organization_members')
+      .select('user_id, role')
+      .eq('org_id', orgId)
+      .neq('user_id', userId)
+      .then(({ data }: { data: OrgMember[] | null }) => {
+        if (data) setMembers(data)
+      })
+  }, [orgId, userId, userRole])
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -170,6 +189,30 @@ export default function ConfiguracoesPage() {
       toast({ title: 'Erro ao excluir organização', variant: 'destructive' })
     } finally {
       setDeletingOrg(false)
+    }
+  }
+
+  // ── Transfer org ownership ────────────────────────────────────────────────
+  async function handleTransfer() {
+    if (!selectedNewOwner) return
+    setTransferring(true)
+    try {
+      const res = await fetch('/api/org/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_owner_id: selectedNewOwner }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'Erro ao transferir', description: data.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: 'Propriedade transferida', description: 'O novo proprietário foi definido.' })
+      window.location.reload()
+    } catch {
+      toast({ title: 'Erro ao transferir organização', variant: 'destructive' })
+    } finally {
+      setTransferring(false)
     }
   }
 
@@ -423,6 +466,85 @@ export default function ConfiguracoesPage() {
                 </AlertDialogContent>
               </AlertDialog>
             </div>
+          </div>
+        </Section>
+      )}
+
+      {/* ── Transferir propriedade (owner only) ────────────────────────────── */}
+      {userRole === 'owner' && (
+        <Section>
+          <SectionHeader icon={ArrowLeftRight} title="Transferir propriedade" />
+          <div className="p-5 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Transfere o controle total da organização para outro membro. Você passa a ter o papel de <strong>Empresário</strong> e perde os privilégios de proprietário.
+            </p>
+            {members.length === 0 ? (
+              <p className="text-xs text-muted-foreground/60 italic">
+                Nenhum outro membro na organização ainda.
+              </p>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select
+                  value={selectedNewOwner}
+                  onChange={e => setSelectedNewOwner(e.target.value)}
+                  className="flex-1 h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Selecionar novo proprietário…</option>
+                  {members.map(m => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.user_id}
+                    </option>
+                  ))}
+                </select>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!selectedNewOwner || transferring}
+                      className="gap-1.5 shrink-0 border-amber-500/30 text-amber-700 hover:bg-amber-50 hover:border-amber-500/60 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                    >
+                      <ArrowLeftRight className="h-3.5 w-3.5" />
+                      Transferir
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="flex items-center gap-2">
+                        <ArrowLeftRight className="h-5 w-5 text-amber-600" />
+                        Transferir propriedade?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                          <p>Você está prestes a <strong className="text-foreground">transferir o controle total</strong> da organização <strong className="text-foreground">{orgName}</strong>.</p>
+                          <p>Após a transferência:</p>
+                          <ul className="list-disc list-inside space-y-1 text-xs">
+                            <li>O membro selecionado se torna o novo proprietário</li>
+                            <li>Seu papel passa a ser <strong>Empresário</strong></li>
+                            <li>Você perde acesso a configurações e exclusão da organização</li>
+                          </ul>
+                          <p className="text-amber-600 dark:text-amber-400 font-medium">Esta ação pode ser desfeita pelo novo proprietário.</p>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleTransfer}
+                        disabled={transferring}
+                        className="bg-amber-600 text-white hover:bg-amber-700 gap-1.5"
+                      >
+                        {transferring
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <ArrowLeftRight className="h-3.5 w-3.5" />
+                        }
+                        {transferring ? 'Transferindo…' : 'Confirmar transferência'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
           </div>
         </Section>
       )}
