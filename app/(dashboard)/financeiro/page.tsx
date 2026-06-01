@@ -321,6 +321,14 @@ function ExpenseRow({
         {expense.description ?? catConfig.label}
       </span>
 
+      {/* Fixed cost badge */}
+      {expense.fixed_cost_id && (
+        <span className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
+          <Repeat className="h-2 w-2" />
+          fixo
+        </span>
+      )}
+
       {/* Paid date — editable inline */}
       {isPaid ? (
         editingDate ? (

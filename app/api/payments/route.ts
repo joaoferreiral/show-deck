@@ -72,7 +72,7 @@ export async function GET(req: Request) {
       .order('due_date', { ascending: true }),
     sb
       .from('expenses')
-      .select('id, show_id, category, description, amount, paid, paid_at, notes, created_at')
+      .select('id, show_id, category, description, amount, paid, paid_at, notes, fixed_cost_id, created_at')
       .in('show_id', showIds)
       .order('created_at', { ascending: true }),
   ])
@@ -88,7 +88,7 @@ export async function GET(req: Request) {
 
   // Group by show_id
   type RawPayment = { id: string; show_id: string; amount: number; due_date: string; paid_at: string | null; description: string | null; created_at: string }
-  type RawExpense = { id: string; show_id: string; category: string; description: string | null; amount: number; paid: boolean; paid_at: string | null; notes: string | null; created_at: string }
+  type RawExpense = { id: string; show_id: string; category: string; description: string | null; amount: number; paid: boolean; paid_at: string | null; notes: string | null; fixed_cost_id: string | null; created_at: string }
 
   const paymentsByShow = ((paymentsRes.data ?? []) as RawPayment[]).reduce<Record<string, RawPayment[]>>((acc, p) => {
     ;(acc[p.show_id] ??= []).push(p)

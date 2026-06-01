@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 
   let query = sb
     .from('expenses')
-    .select('id, show_id, category, description, amount, paid, paid_at, notes, created_at')
+    .select('id, show_id, category, description, amount, paid, paid_at, notes, fixed_cost_id, created_at')
     .eq('org_id', orgId)
     .order('created_at', { ascending: true })
 
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
   if (!orgId) return NextResponse.json({ error: 'Sem organização' }, { status: 403 })
 
   const body = await req.json()
-  const { show_id, category, description, amount, paid, notes, paid_at } = body as {
+  const { show_id, category, description, amount, paid, notes, paid_at, fixed_cost_id } = body as {
     show_id: string
     category: ExpenseCategory
     description?: string
@@ -73,6 +73,7 @@ export async function POST(req: Request) {
     paid?: boolean
     notes?: string
     paid_at?: string | null
+    fixed_cost_id?: string | null
   }
 
   if (!show_id)  return NextResponse.json({ error: 'show_id é obrigatório' }, { status: 400 })
@@ -99,9 +100,10 @@ export async function POST(req: Request) {
       category:    category ?? 'outros',
       description: description ?? null,
       amount,
-      paid:        paid ?? false,
-      paid_at:     paid ? (paid_at ?? new Date().toISOString()) : null,
-      notes:       notes ?? null,
+      paid:          paid ?? false,
+      paid_at:       paid ? (paid_at ?? new Date().toISOString()) : null,
+      notes:         notes ?? null,
+      fixed_cost_id: fixed_cost_id ?? null,
     })
     .select()
     .single()

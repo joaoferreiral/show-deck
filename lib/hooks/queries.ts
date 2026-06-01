@@ -183,6 +183,7 @@ export type ShowExpense = {
   paid: boolean
   paid_at: string | null
   notes: string | null
+  fixed_cost_id: string | null
   created_at: string
 }
 

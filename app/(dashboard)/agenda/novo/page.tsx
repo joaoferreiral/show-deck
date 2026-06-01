@@ -402,6 +402,33 @@ export default function NovoEventoPage() {
       return
     }
 
+    // ── Import active fixed costs as expenses ──────────────────────────────
+    if (data?.id && artistId) {
+      try {
+        const fcRes = await fetch(`/api/fixed-costs?artist_id=${artistId}`)
+        if (fcRes.ok) {
+          const { fixedCosts } = await fcRes.json() as { fixedCosts: { id: string; category: string; description: string; amount: number; active: boolean }[] }
+          const active = (fixedCosts ?? []).filter(c => c.active)
+          if (active.length) {
+            await Promise.all(active.map(fc =>
+              fetch('/api/expenses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  show_id:       data.id,
+                  category:      fc.category,
+                  description:   fc.description,
+                  amount:        fc.amount,
+                  paid:          false,
+                  fixed_cost_id: fc.id,
+                }),
+              })
+            ))
+          }
+        }
+      } catch { /* ignore — non-blocking */ }
+    }
+
     // ── Create payment plan if configured ──────────────────────────────────
     if (data?.id && hasPaymentPlan) {
       const rows = planInstallments.filter(i => parseCurrency(i.amount) > 0).map(i => {
