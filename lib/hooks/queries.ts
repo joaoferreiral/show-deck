@@ -392,6 +392,36 @@ export function useShowDetail(orgId: string, showId: string) {
   })
 }
 
+// ─── Fixed Costs ─────────────────────────────────────────────────────────────
+
+export type FixedCost = {
+  id: string
+  org_id: string
+  artist_id: string
+  description: string
+  amount: number
+  category: string
+  active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+  artists?: { id: string; name: string; color: string; photo_url: string | null } | null
+}
+
+export function useFixedCosts(orgId: string) {
+  return useQuery({
+    queryKey: ['fixed-costs', orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const res = await fetch('/api/fixed-costs')
+      if (!res.ok) throw new Error('Falha ao carregar custos fixos')
+      const { fixedCosts } = await res.json() as { fixedCosts: FixedCost[] }
+      return (fixedCosts ?? []) as FixedCost[]
+    },
+    staleTime: 60 * 1000,
+  })
+}
+
 // ─── Calendário ───────────────────────────────────────────────────────────────
 
 export type CalendarShow = {

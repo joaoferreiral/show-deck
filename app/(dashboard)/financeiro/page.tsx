@@ -3,8 +3,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from '@/components/providers/session-provider'
-import { useFinanceiro, useArtists } from '@/lib/hooks/queries'
-import type { FinanceiroShow, ShowPayment, ShowExpense } from '@/lib/hooks/queries'
+import { useFinanceiro, useArtists, useFixedCosts } from '@/lib/hooks/queries'
+import type { FinanceiroShow, ShowPayment, ShowExpense, FixedCost } from '@/lib/hooks/queries'
 import { formatCurrency, formatDate, cn, initials } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -15,7 +15,7 @@ import {
   ChevronDown, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Clock,
   Plus, Trash2, LayoutList, Users, TrendingUp,
-  AlertTriangle, Ban, Download, Loader2, X,
+  AlertTriangle, Ban, Download, Loader2, X, Repeat,
   Truck, Building2, Sparkles, Music2, Utensils, Wrench, MoreHorizontal,
   ArrowUpRight,
 } from 'lucide-react'
@@ -81,6 +81,20 @@ const EXPENSE_CATEGORY_CONFIG: Record<ExpenseCategory, { label: string; icon: Re
   alimentacao: { label: 'Alimentação', icon: Utensils       },
   equipamento: { label: 'Equipamento', icon: Wrench         },
   outros:      { label: 'Outros',      icon: MoreHorizontal },
+}
+
+// ─── Fixed cost category config ───────────────────────────────────────────────
+
+type FixedCostCategory = 'musicos' | 'equipamento' | 'transporte' | 'assessoria' | 'marketing' | 'administrativo' | 'outros'
+
+const FIXED_COST_CATEGORY_CONFIG: Record<FixedCostCategory, { label: string; icon: React.ElementType }> = {
+  musicos:        { label: 'Músicos/Banda',  icon: Music2         },
+  equipamento:    { label: 'Equipamento',    icon: Wrench         },
+  transporte:     { label: 'Transporte',     icon: Truck          },
+  assessoria:     { label: 'Assessoria',     icon: Users          },
+  marketing:      { label: 'Marketing',      icon: TrendingUp     },
+  administrativo: { label: 'Administrativo', icon: Building2      },
+  outros:         { label: 'Outros',         icon: MoreHorizontal },
 }
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
@@ -639,6 +653,249 @@ function AddPaymentPlan({
   )
 }
 
+// ─── Add Fixed Cost form ──────────────────────────────────────────────────────
+
+function AddFixedCostForm({
+  artistId, onClose, onSaved,
+}: {
+  artistId: string; onClose: () => void; onSaved: () => void
+}) {
+  const { toast } = useToast()
+  const [description, setDescription] = useState('')
+  const [amount, setAmount]           = useState('')
+  const [category, setCategory]       = useState<FixedCostCategory>('outros')
+  const [saving, setSaving]           = useState(false)
+
+  async function handleSave() {
+    const parsedAmount = parseCurrencyFin(amount)
+    if (!description.trim()) { toast({ title: 'Descrição obrigatória', variant: 'destructive' }); return }
+    if (!parsedAmount || parsedAmount <= 0) { toast({ title: 'Valor inválido', variant: 'destructive' }); return }
+    setSaving(true)
+    try {
+      const res = await fetch('/api/fixed-costs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artist_id: artistId, description: description.trim(), amount: parsedAmount, category }),
+      })
+      if (!res.ok) throw new Error()
+      toast({ title: 'Custo fixo adicionado' })
+      onSaved(); onClose()
+    } catch {
+      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2.5">
+      <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Novo custo fixo</p>
+      <div className="flex flex-wrap gap-2">
+        <select
+          value={category}
+          onChange={e => setCategory(e.target.value as FixedCostCategory)}
+          className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring shrink-0"
+        >
+          {(Object.entries(FIXED_COST_CATEGORY_CONFIG) as [FixedCostCategory, { label: string }][]).map(([k, { label }]) => (
+            <option key={k} value={k}>{label}</option>
+          ))}
+        </select>
+        <div className="relative flex items-center shrink-0">
+          <span className="absolute left-2 text-[11px] text-muted-foreground select-none">R$</span>
+          <Input
+            type="text" placeholder="0,00"
+            value={amount} onChange={e => setAmount(maskCurrencyFin(e.target.value))}
+            className="h-8 text-xs pl-6 w-24 tabular-nums"
+          />
+        </div>
+        <Input
+          type="text" placeholder="Descrição (ex: Cachê baixista)"
+          value={description} onChange={e => setDescription(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSave()}
+          className="h-8 text-xs flex-1 min-w-[140px]"
+        />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 text-xs px-3">
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Adicionar'}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClose} className="h-7 text-xs px-2 text-muted-foreground">
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Artist Fixed Costs Card ──────────────────────────────────────────────────
+
+function ArtistFixedCostsCard({
+  artist, costs, orgId, queryClient,
+}: {
+  artist: { id: string; name: string; color: string; photo_url: string | null }
+  costs: FixedCost[]
+  orgId: string
+  queryClient: ReturnType<typeof useQueryClient>
+}) {
+  const { toast } = useToast()
+  const [adding, setAdding] = useState(false)
+  const [open, setOpen]     = useState(true)
+
+  const activeCosts   = costs.filter(c => c.active)
+  const inactiveCosts = costs.filter(c => !c.active)
+  const monthlyTotal  = activeCosts.reduce((s, c) => s + c.amount, 0)
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ['fixed-costs', orgId] })
+  }
+
+  async function toggleActive(cost: FixedCost) {
+    // Optimistic
+    queryClient.setQueryData<FixedCost[]>(['fixed-costs', orgId], old =>
+      old ? old.map(c => c.id === cost.id ? { ...c, active: !c.active } : c) : old
+    )
+    try {
+      await fetch(`/api/fixed-costs/${cost.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !cost.active }),
+      })
+      invalidate()
+    } catch {
+      queryClient.setQueryData<FixedCost[]>(['fixed-costs', orgId], old =>
+        old ? old.map(c => c.id === cost.id ? { ...c, active: cost.active } : c) : old
+      )
+    }
+  }
+
+  async function deleteCost(cost: FixedCost) {
+    queryClient.setQueryData<FixedCost[]>(['fixed-costs', orgId], old =>
+      old ? old.filter(c => c.id !== cost.id) : old
+    )
+    try {
+      await fetch(`/api/fixed-costs/${cost.id}`, { method: 'DELETE' })
+      invalidate()
+    } catch {
+      invalidate()
+      toast({ title: 'Erro ao remover', variant: 'destructive' })
+    }
+  }
+
+  const CostRow = ({ cost }: { cost: FixedCost }) => {
+    const catKey    = cost.category as FixedCostCategory
+    const catConfig = FIXED_COST_CATEGORY_CONFIG[catKey] ?? FIXED_COST_CATEGORY_CONFIG.outros
+    const CatIcon   = catConfig.icon
+    return (
+      <div className={cn(
+        'group flex items-center gap-2.5 py-2 px-2 rounded-lg transition-colors',
+        cost.active ? 'hover:bg-muted/40' : 'opacity-50 hover:bg-muted/20',
+      )}>
+        <CatIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className={cn(
+          'text-xs flex-1 min-w-0 truncate',
+          cost.active ? 'text-foreground' : 'text-muted-foreground line-through',
+        )}>
+          {cost.description}
+        </span>
+        <span className="text-[10px] text-muted-foreground/60 hidden sm:inline shrink-0">
+          {catConfig.label}
+        </span>
+        <span className={cn(
+          'text-xs font-semibold tabular-nums shrink-0',
+          cost.active ? 'text-foreground' : 'text-muted-foreground/50',
+        )}>
+          {formatCurrency(cost.amount)}
+        </span>
+        {/* Toggle active */}
+        <button
+          onClick={() => toggleActive(cost)}
+          title={cost.active ? 'Desativar temporariamente' : 'Reativar'}
+          className={cn(
+            'shrink-0 p-1 rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100',
+            cost.active
+              ? 'text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10'
+              : 'text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10',
+          )}
+        >
+          <Repeat className="h-3 w-3" />
+        </button>
+        {/* Delete */}
+        <button
+          onClick={() => deleteCost(cost)}
+          className="shrink-0 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+          aria-label="Remover"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Artist header */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/20 transition-colors text-left bg-muted/10"
+      >
+        {open
+          ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+          : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+        }
+        <Avatar className="h-7 w-7 shrink-0">
+          <AvatarImage src={artist.photo_url ?? undefined} alt={artist.name} />
+          <AvatarFallback style={{ backgroundColor: artist.color + '22', color: artist.color }} className="text-[10px] font-bold">
+            {initials(artist.name)}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate">{artist.name}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {activeCosts.length} custo{activeCosts.length !== 1 ? 's' : ''} ativo{activeCosts.length !== 1 ? 's' : ''}
+            {monthlyTotal > 0 && <span className="tabular-nums ml-1.5 font-medium text-foreground">· {formatCurrency(monthlyTotal)}/mês</span>}
+          </p>
+        </div>
+        <span className="shrink-0 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest hidden sm:inline">
+          Total mensal
+        </span>
+        <span className="shrink-0 text-sm font-bold tabular-nums">{formatCurrency(monthlyTotal)}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-3 space-y-1 pt-1">
+          {/* Active costs */}
+          {activeCosts.map(c => <CostRow key={c.id} cost={c} />)}
+
+          {/* Inactive costs (collapsed hint) */}
+          {inactiveCosts.length > 0 && (
+            <div className="mt-1 pt-1 border-t border-border/30">
+              <p className="text-[10px] text-muted-foreground/40 uppercase tracking-widest font-semibold px-2 pb-1">
+                Inativos ({inactiveCosts.length})
+              </p>
+              {inactiveCosts.map(c => <CostRow key={c.id} cost={c} />)}
+            </div>
+          )}
+
+          {/* Add form */}
+          {adding ? (
+            <div className="mt-2">
+              <AddFixedCostForm
+                artistId={artist.id}
+                onClose={() => setAdding(false)}
+                onSaved={invalidate}
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => setAdding(true)}
+              className="flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-primary transition-colors py-1 px-2 mt-1"
+            >
+              <Plus className="h-3 w-3" />
+              Adicionar custo fixo
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Show row (expandable) ────────────────────────────────────────────────────
 
 function ShowRow({
@@ -1008,7 +1265,7 @@ function ArtistGroup({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type ViewMode = 'shows' | 'artistas'
+type ViewMode = 'shows' | 'artistas' | 'custos_fixos'
 type FilterStatus = 'todos' | PaymentStatus
 
 export default function FinanceiroPage() {
@@ -1025,6 +1282,7 @@ export default function FinanceiroPage() {
   const { from, to } = getPeriodRange(period)
   const { data: shows, isLoading } = useFinanceiro(orgId, from, to, filterArtist || undefined)
   const { data: artistsData } = useArtists(orgId)
+  const { data: fixedCostsData, isLoading: fixedCostsLoading } = useFixedCosts(orgId)
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['financeiro', orgId] })
@@ -1074,6 +1332,22 @@ export default function FinanceiroPage() {
   }, [filteredShows])
 
   const artists = artistsData?.artists ?? []
+
+  // Group fixed costs by artist
+  const fixedCostsByArtist = useMemo(() => {
+    const allCosts = fixedCostsData ?? []
+    const map = new Map<string, { artist: { id: string; name: string; color: string; photo_url: string | null }; costs: FixedCost[] }>()
+    allCosts.forEach(c => {
+      if (!c.artists) return
+      if (!map.has(c.artist_id)) map.set(c.artist_id, { artist: c.artists as { id: string; name: string; color: string; photo_url: string | null }, costs: [] })
+      map.get(c.artist_id)!.costs.push(c)
+    })
+    // Also include artists with no costs yet (from artistsData)
+    artists.filter(a => a.active).forEach(a => {
+      if (!map.has(a.id)) map.set(a.id, { artist: a, costs: [] })
+    })
+    return Array.from(map.values()).sort((a, b) => a.artist.name.localeCompare(b.artist.name))
+  }, [fixedCostsData, artists])
 
   // ── PDF Export ────────────────────────────────────────────────────────────
   async function exportPDF() {
@@ -1339,6 +1613,16 @@ export default function FinanceiroPage() {
                 <Users className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Por artista</span>
               </button>
+              <button
+                onClick={() => setViewMode('custos_fixos')}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-150',
+                  viewMode === 'custos_fixos' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Repeat className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Fixos</span>
+              </button>
             </div>
 
             <div className="w-px h-4 bg-border mx-0.5" />
@@ -1382,8 +1666,71 @@ export default function FinanceiroPage() {
           </div>
         </div>
 
-        {/* ── Content ── */}
-        {isLoading ? (
+        {/* ── Custos Fixos view ── */}
+        {viewMode === 'custos_fixos' && (
+          fixedCostsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Summary strip */}
+              {fixedCostsByArtist.some(g => g.costs.filter(c => c.active).length > 0) && (
+                <div className="rounded-xl border border-border bg-card overflow-x-auto">
+                  <div className="flex items-stretch divide-x divide-border min-w-max">
+                    {(() => {
+                      const allActive = (fixedCostsData ?? []).filter(c => c.active)
+                      const totalMonth = allActive.reduce((s, c) => s + c.amount, 0)
+                      const byArtistTotals = fixedCostsByArtist
+                        .map(g => ({ name: g.artist.name, color: g.artist.color, total: g.costs.filter(c => c.active).reduce((s, c) => s + c.amount, 0) }))
+                        .filter(g => g.total > 0)
+                      return (
+                        <>
+                          <div className="px-5 py-3.5 flex flex-col gap-1 min-w-[120px]">
+                            <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">Total mensal</span>
+                            <span className="text-sm font-bold tabular-nums">{formatCurrency(totalMonth)}</span>
+                          </div>
+                          <div className="px-5 py-3.5 flex flex-col gap-1 min-w-[80px]">
+                            <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">Itens ativos</span>
+                            <span className="text-sm font-bold tabular-nums">{allActive.length}</span>
+                          </div>
+                          {byArtistTotals.map(g => (
+                            <div key={g.name} className="px-5 py-3.5 flex flex-col gap-1 min-w-[120px]">
+                              <span className="text-[10px] font-semibold uppercase tracking-widest whitespace-nowrap truncate max-w-[140px]" style={{ color: g.color }}>{g.name}</span>
+                              <span className="text-sm font-bold tabular-nums">{formatCurrency(g.total)}</span>
+                            </div>
+                          ))}
+                        </>
+                      )
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Artist cards */}
+              {fixedCostsByArtist.map(({ artist, costs }) => (
+                <ArtistFixedCostsCard
+                  key={artist.id}
+                  artist={artist}
+                  costs={costs}
+                  orgId={orgId}
+                  queryClient={queryClient}
+                />
+              ))}
+
+              {fixedCostsByArtist.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-24 text-center">
+                  <Repeat className="h-8 w-8 text-muted-foreground/20 mb-3" />
+                  <p className="text-sm font-medium text-muted-foreground">Nenhum artista cadastrado</p>
+                  <p className="text-xs text-muted-foreground/50 mt-1">Cadastre artistas para adicionar custos fixos</p>
+                </div>
+              )}
+            </div>
+          )
+        )}
+
+        {/* ── Shows / Por artista content ── */}
+        {viewMode !== 'custos_fixos' && (isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-xl" />)}
           </div>
@@ -1431,7 +1778,7 @@ export default function FinanceiroPage() {
               )
             })()}
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
