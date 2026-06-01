@@ -158,7 +158,7 @@ export function OrgSelectClient({ orgs: initialOrgs, invites: initialInvites, us
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       {/* Top bar */}
       <header className="h-14 border-b border-border flex items-center justify-between px-4 md:px-6 shrink-0">
         <div className="flex items-center gap-2">

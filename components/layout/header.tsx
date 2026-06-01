@@ -33,13 +33,7 @@ export function Header() {
 
   return (
     <>
-      <header
-        className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-background/90 backdrop-blur-md px-4 md:px-6 shrink-0"
-        style={{
-          paddingTop: 'env(safe-area-inset-top, 0px)',
-          height: 'calc(3.5rem + env(safe-area-inset-top, 0px))',
-        }}
-      >
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border bg-background/90 backdrop-blur-md px-4 md:px-6 shrink-0">
         {/* Hamburger — mobile only */}
         <button
           className="md:hidden rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors -ml-1"

@@ -22,8 +22,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
           />
         </div>
 
-        {/* Main content */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Main content — padding-top reserves space for the device status bar (safe area) */}
+        <div className="flex flex-1 flex-col overflow-hidden" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <Header />
           <main className="flex-1 overflow-y-auto pb-20 md:pb-0" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
             {children}
