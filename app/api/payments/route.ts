@@ -135,7 +135,7 @@ export async function POST(req: Request) {
   const body = await req.json()
   const { show_id, installments } = body as {
     show_id: string
-    installments: { amount: number; due_date: string; description?: string }[]
+    installments: { amount: number; due_date: string; description?: string; paid_at?: string | null }[]
   }
 
   if (!show_id) return NextResponse.json({ error: 'show_id é obrigatório' }, { status: 400 })
@@ -160,7 +160,7 @@ export async function POST(req: Request) {
     amount:      inst.amount,
     due_date:    inst.due_date,
     description: inst.description ?? null,
-    paid_at:     null,
+    paid_at:     inst.paid_at ?? null,
   }))
 
   const { data: created, error } = await sb

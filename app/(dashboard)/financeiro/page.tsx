@@ -15,7 +15,7 @@ import {
   ChevronDown, ChevronRight,
   CheckCircle2, Circle, AlertCircle, Clock,
   Plus, Trash2, LayoutList, Users, TrendingUp,
-  AlertTriangle, Ban, Download, Loader2,
+  AlertTriangle, Ban, Download, Loader2, X,
   Truck, Building2, Sparkles, Music2, Utensils, Wrench, MoreHorizontal,
   ArrowUpRight,
 } from 'lucide-react'
@@ -25,6 +25,23 @@ import {
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
+
+// ─── Formatting helpers ───────────────────────────────────────────────────────
+
+function maskDateStr(v: string) {
+  let raw = v.replace(/\D/g, '').slice(0, 8)
+  if (raw.length > 4) raw = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4)
+  else if (raw.length > 2) raw = raw.slice(0, 2) + '/' + raw.slice(2)
+  return raw
+}
+function maskCurrencyFin(v: string) {
+  const d = v.replace(/\D/g, '')
+  if (!d) return ''
+  return (parseInt(d, 10) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function parseCurrencyFin(v: string) {
+  return parseFloat(v.replace(/\./g, '').replace(',', '.')) || 0
+}
 
 // ─── Payment status ───────────────────────────────────────────────────────────
 
@@ -452,44 +469,64 @@ function AddExpenseForm({
 
 // ─── Add Payment Plan form ────────────────────────────────────────────────────
 
+type DraftPayment = { id: string; amount: string; date: string; description: string; paid: boolean; paidDate: string }
+
 function AddPaymentPlan({
   show, onClose, onSaved,
 }: {
   show: FinanceiroShow; onClose: () => void; onSaved: () => void
 }) {
   const { toast } = useToast()
-  const [mode, setMode]               = useState<'integral' | 'parcelado'>('integral')
-  const [totalAmount, setTotalAmount] = useState(String(show.cache_value || ''))
-  const [numParcelas, setNumParcelas] = useState('2')
-  const [startDate, setStartDate]     = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [saving, setSaving]           = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [drafts, setDrafts] = useState<DraftPayment[]>([{
+    id: '1',
+    amount: show.cache_value > 0 ? maskCurrencyFin(String(Math.round(show.cache_value * 100))) : '',
+    date: format(new Date(), 'dd/MM/yyyy'),
+    description: '',
+    paid: false,
+    paidDate: format(new Date(), 'dd/MM/yyyy'),
+  }])
+
+  function updateDraft(id: string, patch: Partial<DraftPayment>) {
+    setDrafts(prev => prev.map(d => d.id === id ? { ...d, ...patch } : d))
+  }
+  function addDraft() {
+    setDrafts(prev => [...prev, {
+      id: String(Date.now()),
+      amount: '',
+      date: format(new Date(), 'dd/MM/yyyy'),
+      description: prev.length >= 1 ? `Parcela ${prev.length + 1}` : '',
+      paid: false,
+      paidDate: format(new Date(), 'dd/MM/yyyy'),
+    }])
+  }
+  function removeDraft(id: string) {
+    setDrafts(prev => prev.filter(d => d.id !== id))
+  }
+
+  const totalAmount  = drafts.reduce((s, d) => s + parseCurrencyFin(d.amount), 0)
+  const totalPaid    = drafts.filter(d => d.paid).reduce((s, d) => s + parseCurrencyFin(d.amount), 0)
+  const totalPending = totalAmount - totalPaid
 
   async function handleSave() {
-    const amount = parseFloat(totalAmount.replace(',', '.'))
-    if (!amount || amount <= 0) {
-      toast({ title: 'Valor inválido', variant: 'destructive' }); return
-    }
-    let installments: { amount: number; due_date: string; description?: string }[] = []
-    if (mode === 'integral') {
-      installments = [{ amount, due_date: startDate }]
-    } else {
-      const n = Math.max(2, parseInt(numParcelas, 10) || 2)
-      const perParcela = Math.round((amount / n) * 100) / 100
-      const base = parseISO(startDate)
-      installments = Array.from({ length: n }, (_, i) => ({
-        amount: i === n - 1 ? Math.round((amount - perParcela * (n - 1)) * 100) / 100 : perParcela,
-        due_date: format(addMonths(base, i), 'yyyy-MM-dd'),
-        description: `Parcela ${i + 1}/${n}`,
-      }))
-    }
+    const rows = drafts.filter(d => parseCurrencyFin(d.amount) > 0).map(d => {
+      const parsedDate = parse(d.date, 'dd/MM/yyyy', new Date())
+      const dueDate = isValid(parsedDate) ? format(parsedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
+      const parsedPaid = parse(d.paidDate, 'dd/MM/yyyy', new Date())
+      const paidAt = d.paid && isValid(parsedPaid)
+        ? new Date(parsedPaid.getFullYear(), parsedPaid.getMonth(), parsedPaid.getDate(), 12).toISOString()
+        : null
+      return { amount: parseCurrencyFin(d.amount), due_date: dueDate, description: d.description.trim() || null, paid_at: paidAt }
+    })
+    if (!rows.length) { toast({ title: 'Adicione ao menos uma parcela com valor', variant: 'destructive' }); return }
     setSaving(true)
     try {
       const res = await fetch('/api/payments', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ show_id: show.id, installments }),
+        body: JSON.stringify({ show_id: show.id, installments: rows }),
       })
       if (!res.ok) throw new Error()
-      toast({ title: `${installments.length} parcela${installments.length > 1 ? 's' : ''} criada${installments.length > 1 ? 's' : ''}` })
+      toast({ title: `${rows.length} parcela${rows.length > 1 ? 's' : ''} criada${rows.length > 1 ? 's' : ''}` })
       onSaved(); onClose()
     } catch {
       toast({ title: 'Erro ao salvar plano', variant: 'destructive' })
@@ -500,53 +537,104 @@ function AddPaymentPlan({
     <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2.5">
       <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">Novo recebimento</p>
 
-      <div className="flex flex-wrap gap-2 items-end">
-        {/* Mode */}
-        <div className="flex rounded-md border border-border overflow-hidden">
-          {(['integral', 'parcelado'] as const).map(m => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={cn(
-                'px-3 py-1 text-xs font-medium transition-colors',
-                mode === m ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted',
+      {/* Installment rows */}
+      <div className="space-y-2">
+        {drafts.map((d, idx) => (
+          <div key={d.id} className="rounded-md border border-border/50 bg-background p-2.5 space-y-2">
+            {/* Row: index + amount + date + description + remove */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold text-muted-foreground/40 w-4 shrink-0">{idx + 1}</span>
+              {/* Amount */}
+              <div className="relative flex items-center shrink-0">
+                <span className="absolute left-2 text-[11px] text-muted-foreground select-none">R$</span>
+                <Input
+                  type="text"
+                  placeholder="0,00"
+                  value={d.amount}
+                  onChange={e => updateDraft(d.id, { amount: maskCurrencyFin(e.target.value) })}
+                  className="h-7 text-xs pl-6 w-24 tabular-nums"
+                />
+              </div>
+              {/* Date */}
+              <Input
+                type="text"
+                placeholder="dd/mm/aaaa"
+                value={d.date}
+                onChange={e => updateDraft(d.id, { date: maskDateStr(e.target.value) })}
+                maxLength={10}
+                className="h-7 text-xs w-28 shrink-0"
+              />
+              {/* Description */}
+              <Input
+                type="text"
+                placeholder="Descrição (opcional)"
+                value={d.description}
+                onChange={e => updateDraft(d.id, { description: e.target.value })}
+                className="h-7 text-xs flex-1 min-w-[100px]"
+              />
+              {drafts.length > 1 && (
+                <button
+                  onClick={() => removeDraft(d.id)}
+                  className="shrink-0 p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
               )}
-            >
-              {m === 'integral' ? 'À vista' : 'Parcelado'}
-            </button>
-          ))}
-        </div>
-        <Input
-          type="number" min="0" step="0.01" placeholder="Valor total (R$)"
-          value={totalAmount} onChange={e => setTotalAmount(e.target.value)}
-          className="h-8 text-xs w-36"
-        />
-        <Input
-          type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-          className="h-8 text-xs w-36"
-        />
-        {mode === 'parcelado' && (
-          <Input
-            type="number" min="2" max="24" placeholder="Nº parcelas"
-            value={numParcelas} onChange={e => setNumParcelas(e.target.value)}
-            className="h-8 text-xs w-24"
-          />
-        )}
-        <div className="flex items-center gap-1.5 ml-auto">
-          <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 text-xs px-3">
-            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Salvar'}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onClose} className="h-7 text-xs px-2 text-muted-foreground">
-            Cancelar
-          </Button>
-        </div>
+            </div>
+            {/* Already paid */}
+            <div className="flex flex-wrap items-center gap-2 pl-5">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={d.paid}
+                  onChange={e => updateDraft(d.id, { paid: e.target.checked })}
+                  className="h-3 w-3 accent-primary"
+                />
+                <span className="text-[11px] text-muted-foreground">Já pago em</span>
+              </label>
+              {d.paid && (
+                <Input
+                  type="text"
+                  placeholder="dd/mm/aaaa"
+                  value={d.paidDate}
+                  onChange={e => updateDraft(d.id, { paidDate: maskDateStr(e.target.value) })}
+                  maxLength={10}
+                  className="h-6 text-xs w-28"
+                />
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {mode === 'parcelado' && parseFloat(totalAmount) > 0 && (
-        <p className="text-[11px] text-muted-foreground">
-          {parseInt(numParcelas, 10) || 2}× de {formatCurrency((parseFloat(totalAmount.replace(',', '.')) || 0) / (parseInt(numParcelas, 10) || 2))}
-        </p>
-      )}
+      {/* Add + totals */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <button
+          onClick={addDraft}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+        >
+          <Plus className="h-3 w-3" /> Adicionar parcela
+        </button>
+        {totalAmount > 0 && (
+          <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] tabular-nums">
+            {totalPaid > 0 && <span className="text-emerald-600 dark:text-emerald-400">{formatCurrency(totalPaid)} pago</span>}
+            {totalPaid > 0 && totalPending > 0 && <span className="text-muted-foreground/40">·</span>}
+            {totalPending > 0 && <span className="text-muted-foreground">{formatCurrency(totalPending)} a receber</span>}
+            <span className="text-muted-foreground/40">·</span>
+            <span className="font-semibold text-foreground">{formatCurrency(totalAmount)} total</span>
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1.5 pt-0.5">
+        <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 text-xs px-3">
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Salvar'}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onClose} className="h-7 text-xs px-2 text-muted-foreground">
+          Cancelar
+        </Button>
+      </div>
     </div>
   )
 }

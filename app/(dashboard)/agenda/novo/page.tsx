@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/components/providers/session-provider'
 import { useArtists, useContractors } from '@/lib/hooks/queries'
@@ -10,12 +10,12 @@ import { useToast } from '@/components/ui/use-toast'
 import { BRAZILIAN_STATES } from '@/types'
 import { SHOW_STATUS_COLORS, SHOW_STATUS_LABELS } from '@/types'
 import type { ShowStatus } from '@/types'
-import { format, addMonths, parseISO, isBefore } from 'date-fns'
+import { format, parse, isValid } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { initials } from '@/lib/utils'
 import {
-  Upload, X, FileText, Loader2, Save,
+  Upload, X, FileText, Loader2, Save, Plus,
   CalendarDays, Banknote, ArrowLeftRight, Ticket, Percent,
   Info, MapPin, Users, Link2, CreditCard, CheckCircle2,
 } from 'lucide-react'
@@ -77,6 +77,14 @@ function maskCurrency(v: string) {
 function parseCurrency(v: string) {
   return parseFloat(v.replace(/\./g, '').replace(',', '.')) || 0
 }
+function maskDate(v: string) {
+  let raw = v.replace(/\D/g, '').slice(0, 8)
+  if (raw.length > 4) raw = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4)
+  else if (raw.length > 2) raw = raw.slice(0, 2) + '/' + raw.slice(2)
+  return raw
+}
+
+type DraftInstallment = { id: string; amount: string; date: string; description: string; paid: boolean; paidDate: string }
 
 // ─── City autocomplete ────────────────────────────────────────────────────────
 
@@ -311,35 +319,27 @@ export default function NovoEventoPage() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   // ── Payment plan state ────────────────────────────────────────────────────
-  const [paymentMode, setPaymentMode] = useState<'sem_plano' | 'integral' | 'parcelado'>('sem_plano')
-  const [paymentAmountStr, setPaymentAmountStr] = useState('')
-  const [paymentDate, setPaymentDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [numParcelas, setNumParcelas] = useState('2')
+  const [hasPaymentPlan, setHasPaymentPlan] = useState(false)
+  const [planInstallments, setPlanInstallments] = useState<DraftInstallment[]>([{
+    id: '1', amount: '', date: format(new Date(), 'dd/MM/yyyy'), description: '', paid: false, paidDate: format(new Date(), 'dd/MM/yyyy'),
+  }])
 
-  function selectPaymentMode(mode: 'sem_plano' | 'integral' | 'parcelado') {
-    setPaymentMode(mode)
-    // Auto-fill from cachê if amount not yet set
-    if (mode !== 'sem_plano' && !paymentAmountStr && cacheStr) {
-      setPaymentAmountStr(cacheStr)
-    }
+  function updatePlanInst(id: string, patch: Partial<DraftInstallment>) {
+    setPlanInstallments(prev => prev.map(i => i.id === id ? { ...i, ...patch } : i))
+  }
+  function addPlanInst() {
+    setPlanInstallments(prev => [...prev, {
+      id: String(Date.now()), amount: '', date: format(new Date(), 'dd/MM/yyyy'),
+      description: `Parcela ${prev.length + 1}`, paid: false, paidDate: format(new Date(), 'dd/MM/yyyy'),
+    }])
+  }
+  function removePlanInst(id: string) {
+    setPlanInstallments(prev => prev.filter(i => i.id !== id))
   }
 
-  // Installment preview for parcelado mode
-  const installmentPreview = useMemo(() => {
-    if (paymentMode !== 'parcelado') return []
-    const amount = parseCurrency(paymentAmountStr)
-    if (!amount || amount <= 0) return []
-    const n = Math.max(2, parseInt(numParcelas, 10) || 2)
-    const perParcela = Math.round((amount / n) * 100) / 100
-    const base = parseISO(paymentDate || format(new Date(), 'yyyy-MM-dd'))
-    return Array.from({ length: n }, (_, i) => ({
-      amount: i === n - 1
-        ? Math.round((amount - perParcela * (n - 1)) * 100) / 100
-        : perParcela,
-      due_date: format(addMonths(base, i), 'yyyy-MM-dd'),
-      description: `Parcela ${i + 1}/${n}`,
-    }))
-  }, [paymentMode, paymentAmountStr, numParcelas, paymentDate])
+  const planTotal   = planInstallments.reduce((s, i) => s + parseCurrency(i.amount), 0)
+  const planPaid    = planInstallments.filter(i => i.paid).reduce((s, i) => s + parseCurrency(i.amount), 0)
+  const planPending = planTotal - planPaid
 
   const needsGuarantee = ['cache_colocado', 'bilheteria_colocada'].includes(negotiationType)
   const showCache = ['cache', 'cache_colocado'].includes(negotiationType)
@@ -403,19 +403,22 @@ export default function NovoEventoPage() {
     }
 
     // ── Create payment plan if configured ──────────────────────────────────
-    if (data?.id && paymentMode !== 'sem_plano') {
-      const payAmount = parseCurrency(paymentAmountStr)
-      if (payAmount > 0) {
-        const installments = paymentMode === 'integral'
-          ? [{ amount: payAmount, due_date: paymentDate }]
-          : installmentPreview
-        if (installments.length) {
-          await fetch('/api/payments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ show_id: data.id, installments }),
-          }).catch(() => {})
-        }
+    if (data?.id && hasPaymentPlan) {
+      const rows = planInstallments.filter(i => parseCurrency(i.amount) > 0).map(i => {
+        const parsedDate = parse(i.date, 'dd/MM/yyyy', new Date())
+        const dueDate = isValid(parsedDate) ? format(parsedDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
+        const parsedPaid = parse(i.paidDate, 'dd/MM/yyyy', new Date())
+        const paidAt = i.paid && isValid(parsedPaid)
+          ? new Date(parsedPaid.getFullYear(), parsedPaid.getMonth(), parsedPaid.getDate(), 12).toISOString()
+          : null
+        return { amount: parseCurrency(i.amount), due_date: dueDate, description: i.description.trim() || null, paid_at: paidAt }
+      })
+      if (rows.length) {
+        await fetch('/api/payments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ show_id: data.id, installments: rows }),
+        }).catch(() => {})
       }
     }
 
@@ -793,141 +796,140 @@ export default function NovoEventoPage() {
           <section className="rounded-xl border bg-card p-5 md:p-6 shadow-sm">
             <SectionTitle icon={CreditCard} step={3}>Plano de Pagamento</SectionTitle>
 
-            {/* Mode selector */}
-            <div className="flex flex-wrap gap-2 mb-5">
-              {([
-                { value: 'sem_plano', label: 'Sem plano agora' },
-                { value: 'integral',  label: 'À vista' },
-                { value: 'parcelado', label: 'Parcelado' },
-              ] as const).map(({ value, label }) => (
+            {!hasPaymentPlan ? (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <p className="text-sm text-muted-foreground flex-1">
+                  Defina agora quanto e quando vai receber, ou adicione depois no <strong>Financeiro</strong>.
+                </p>
                 <button
-                  key={value}
                   type="button"
-                  onClick={() => selectPaymentMode(value)}
-                  className={cn(
-                    'px-4 py-1.5 rounded-lg text-sm font-medium border transition-all duration-150',
-                    paymentMode === value
-                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                      : 'bg-background text-foreground border-border hover:border-primary/50 hover:bg-muted/50',
-                  )}
+                  onClick={() => {
+                    setHasPaymentPlan(true)
+                    if (cacheStr && !planInstallments[0].amount) {
+                      updatePlanInst('1', { amount: cacheStr })
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-foreground hover:border-primary/50 hover:bg-muted/50 transition-all shrink-0"
                 >
-                  {label}
+                  <Plus className="h-4 w-4" />
+                  Adicionar plano
                 </button>
-              ))}
-            </div>
-
-            {paymentMode === 'sem_plano' && (
-              <p className="text-sm text-muted-foreground">
-                Você poderá adicionar o plano de pagamento depois, na aba <strong>Financeiro</strong>.
-              </p>
-            )}
-
-            {(paymentMode === 'integral' || paymentMode === 'parcelado') && (
-              <div className="space-y-4">
-                <div className={cn(
-                  'grid gap-4',
-                  paymentMode === 'parcelado'
-                    ? 'grid-cols-1 sm:grid-cols-3'
-                    : 'grid-cols-1 sm:grid-cols-2',
-                )}>
-                  {/* Amount */}
-                  <Field label="Valor total (R$)" required>
-                    <CurrencyInput value={paymentAmountStr} onChange={setPaymentAmountStr} />
-                  </Field>
-
-                  {/* Date */}
-                  <Field label={paymentMode === 'integral' ? 'Data de vencimento' : 'Data da 1ª parcela'} required>
-                    <Input
-                      type="date"
-                      value={paymentDate}
-                      onChange={e => setPaymentDate(e.target.value)}
-                      className="h-10"
-                    />
-                  </Field>
-
-                  {/* Num parcelas */}
-                  {paymentMode === 'parcelado' && (
-                    <Field label="Nº de parcelas">
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Installment list */}
+                {planInstallments.map((inst, idx) => (
+                  <div key={inst.id} className="rounded-lg border border-border bg-background p-3 space-y-2.5">
+                    {/* Row: index + amount + date + description + remove */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground shrink-0">
+                        {idx + 1}
+                      </span>
+                      {/* Amount */}
+                      <div className="relative flex items-center shrink-0">
+                        <span className="absolute left-3 text-xs text-muted-foreground select-none font-medium">R$</span>
+                        <Input
+                          type="text"
+                          placeholder="0,00"
+                          value={inst.amount}
+                          onChange={e => updatePlanInst(inst.id, { amount: maskCurrency(e.target.value) })}
+                          className="h-9 pl-8 font-mono tabular-nums w-28"
+                        />
+                      </div>
+                      {/* Date */}
                       <Input
-                        type="number"
-                        min="2"
-                        max="24"
-                        value={numParcelas}
-                        onChange={e => setNumParcelas(e.target.value)}
-                        className="h-10"
+                        type="text"
+                        placeholder="dd/mm/aaaa"
+                        value={inst.date}
+                        onChange={e => updatePlanInst(inst.id, { date: maskDate(e.target.value) })}
+                        maxLength={10}
+                        className="h-9 w-32 shrink-0"
                       />
-                    </Field>
-                  )}
-                </div>
+                      {/* Description */}
+                      <Input
+                        type="text"
+                        placeholder="Descrição (opcional)"
+                        value={inst.description}
+                        onChange={e => updatePlanInst(inst.id, { description: e.target.value })}
+                        className="h-9 flex-1 min-w-[120px]"
+                      />
+                      {planInstallments.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePlanInst(inst.id)}
+                          className="shrink-0 p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {/* Already paid */}
+                    <div className="flex flex-wrap items-center gap-2 pl-7">
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={inst.paid}
+                          onChange={e => updatePlanInst(inst.id, { paid: e.target.checked })}
+                          className="h-3.5 w-3.5 rounded accent-primary"
+                        />
+                        <span className="text-xs text-muted-foreground">Já pago em</span>
+                      </label>
+                      {inst.paid && (
+                        <Input
+                          type="text"
+                          placeholder="dd/mm/aaaa"
+                          value={inst.paidDate}
+                          onChange={e => updatePlanInst(inst.id, { paidDate: maskDate(e.target.value) })}
+                          maxLength={10}
+                          className="h-7 text-xs w-32"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
 
-                {/* Installment preview */}
-                {paymentMode === 'parcelado' && installmentPreview.length > 0 && (
-                  <div className="rounded-lg border border-border overflow-hidden">
-                    <div className="px-4 py-2 bg-muted/40 border-b border-border">
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        Prévia das parcelas
-                      </p>
-                    </div>
-                    <div className="divide-y divide-border/50">
-                      {installmentPreview.map((inst, i) => {
-                        const isLast = i === installmentPreview.length - 1
-                        const isPast = isBefore(parseISO(inst.due_date), new Date())
-                        return (
-                          <div key={i} className="flex items-center justify-between px-4 py-2.5">
-                            <div className="flex items-center gap-3">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground shrink-0">
-                                {i + 1}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {inst.description}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-right">
-                              <span className={cn(
-                                'text-[11px]',
-                                isPast ? 'text-destructive' : 'text-muted-foreground',
-                              )}>
-                                {format(parseISO(inst.due_date), 'dd/MM/yyyy')}
-                              </span>
-                              <span className={cn(
-                                'text-xs font-semibold tabular-nums',
-                                isLast && installmentPreview.length > 1 ? 'text-primary' : 'text-foreground',
-                              )}>
-                                {inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                    {/* Total */}
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-t border-border">
-                      <span className="text-xs font-semibold text-muted-foreground">Total</span>
-                      <span className="text-sm font-bold tabular-nums">
-                        {parseCurrency(paymentAmountStr).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                {/* Footer: add + totals + remove plan */}
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={addPlanInst}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Adicionar parcela
+                  </button>
+
+                  {planTotal > 0 && (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs tabular-nums ml-auto">
+                      {planPaid > 0 && (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          {planPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} pago
+                        </span>
+                      )}
+                      {planPaid > 0 && planPending > 0 && <span className="text-muted-foreground/40">·</span>}
+                      {planPending > 0 && (
+                        <span className="text-muted-foreground">
+                          {planPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} a receber
+                        </span>
+                      )}
+                      {planTotal > 0 && <span className="text-muted-foreground/40">·</span>}
+                      <span className="font-semibold text-foreground">
+                        {planTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} total
                       </span>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* À vista summary */}
-                {paymentMode === 'integral' && paymentAmountStr && parseCurrency(paymentAmountStr) > 0 && (
-                  <div className="flex items-center gap-2 rounded-lg bg-emerald-500/8 border border-emerald-500/20 px-4 py-3">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300">
-                      Pagamento único de{' '}
-                      <strong>
-                        {parseCurrency(paymentAmountStr).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </strong>{' '}
-                      com vencimento em{' '}
-                      <strong>
-                        {paymentDate
-                          ? format(parseISO(paymentDate), "d 'de' MMMM 'de' yyyy", { locale: ptBR })
-                          : '—'}
-                      </strong>
-                    </p>
-                  </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasPaymentPlan(false)
+                      setPlanInstallments([{ id: '1', amount: '', date: format(new Date(), 'dd/MM/yyyy'), description: '', paid: false, paidDate: format(new Date(), 'dd/MM/yyyy') }])
+                    }}
+                    className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                  >
+                    Remover plano
+                  </button>
+                </div>
               </div>
             )}
           </section>
