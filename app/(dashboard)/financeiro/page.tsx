@@ -1399,14 +1399,18 @@ export default function FinanceiroPage() {
       doc.text('Resumo', 14, y)
       y += 6
 
-      const totalExpensesPDF     = filteredShows.flatMap(s => s.expenses ?? []).reduce((s, e) => s + e.amount, 0)
-      const resultadoLiquidoPDF  = metrics.totalPago - totalExpensesPDF
+      const totalShowExpPDF   = filteredShows.flatMap(s => (s.expenses ?? []).filter(e => !e.fixed_cost_id)).reduce((s, e) => s + e.amount, 0)
+      const totalFixedExpPDF  = filteredShows.flatMap(s => (s.expenses ?? []).filter(e =>  e.fixed_cost_id)).reduce((s, e) => s + e.amount, 0)
+      const totalExpensesPDF  = totalShowExpPDF + totalFixedExpPDF
+      const resultadoLiquidoPDF = metrics.totalPago - totalExpensesPDF
       autoTable(doc, {
         startY: y,
         body: [
           ['A Receber',         formatCurrency(metrics.totalPendente)],
           ['Recebido',          formatCurrency(metrics.totalPago)],
           ['Em Atraso',         formatCurrency(metrics.totalAtrasado)],
+          ['Desp. de Show',     formatCurrency(totalShowExpPDF)],
+          ['Custos Fixos',      formatCurrency(totalFixedExpPDF)],
           ['Total Despesas',    formatCurrency(totalExpensesPDF)],
           ['Resultado Líquido', formatCurrency(resultadoLiquidoPDF)],
           ['Shows sem Plano',   String(metrics.semPlano)],
@@ -1419,6 +1423,13 @@ export default function FinanceiroPage() {
           1: { cellWidth: 60, textColor: brand },
         },
         margin: { left: 14, right: 14 },
+        didParseCell(data) {
+          if (data.section === 'body' && data.row.index === 6) {
+            // Resultado Líquido row
+            data.cell.styles.fontStyle = 'bold'
+            data.cell.styles.textColor = resultadoLiquidoPDF >= 0 ? green : red
+          }
+        },
       })
       y = (doc as any).lastAutoTable.finalY + 8
 
@@ -1492,44 +1503,83 @@ export default function FinanceiroPage() {
           doc.text('Sem plano de pagamento.', 22, y + 4); y += 8
         }
 
-        // Despesas
-        if (showExpenses.length > 0) {
-          const expRows: string[][] = showExpenses.map(e => [
+        // ── Despesas (separadas em show e fixas) ───────────────────────────
+        const showOnlyExp = showExpenses.filter(e => !e.fixed_cost_id)
+        const fixedExp    = showExpenses.filter(e =>  e.fixed_cost_id)
+
+        function expTableRow(e: typeof showExpenses[0]): string[] {
+          return [
             EXPENSE_CATEGORY_CONFIG[e.category as ExpenseCategory]?.label ?? e.category,
             e.description ?? '—',
             e.paid && e.paid_at ? `Paga em ${format(new Date(e.paid_at), 'dd/MM/yyyy')}` : e.paid ? 'Paga' : 'Pendente',
             formatCurrency(e.amount),
-          ])
-          expRows.push(['', '', 'Total despesas', formatCurrency(totalShowExp)])
+          ]
+        }
+
+        // Table helper to avoid repetition
+        function drawExpTable(
+          rows: string[][],
+          headLabel: string,
+          hFill: [number, number, number],
+          hText: [number, number, number],
+        ) {
           autoTable(doc, {
             startY: y,
-            head: [['Categoria', 'Descrição', 'Status', 'Valor']],
-            body: expRows,
+            head: [[
+              { content: headLabel, colSpan: 3, styles: { fontStyle: 'bold', fontSize: 7, textColor: hText, fillColor: hFill } },
+              { content: 'Valor', styles: { fontStyle: 'bold', fontSize: 7, textColor: hText, fillColor: hFill, halign: 'right' } },
+            ]],
+            body: rows,
             styles: { fontSize: 7.5, cellPadding: { top: 1.2, bottom: 1.2, left: 4, right: 3 } },
-            headStyles: { fillColor: amberHead, textColor: amberText, fontStyle: 'bold', fontSize: 7.5 },
             bodyStyles: { textColor: gray },
             margin: { left: 20, right: 14 }, tableWidth: pageW - 34,
             columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 32 }, 3: { cellWidth: 32, halign: 'right' } },
             didParseCell(data) {
               if (data.section === 'body' && data.column.index === 2) {
                 const v = String(data.cell.raw)
-                if (v.startsWith('Paga')) data.cell.styles.textColor = green
-                else if (v === 'Pendente') data.cell.styles.textColor = blue
+                if (v.startsWith('Paga'))   data.cell.styles.textColor = green
+                else if (v === 'Pendente')  data.cell.styles.textColor = blue
               }
-              if (data.section === 'body' && data.row.index === expRows.length - 1) {
+              if (data.section === 'body' && data.row.index === rows.length - 1) {
                 data.cell.styles.fontStyle = 'bold'; data.cell.styles.textColor = brand
               }
             },
           })
           y = (doc as any).lastAutoTable.finalY
-          if (show.cache_value > 0) {
-            const res = show.cache_value - totalShowExp
-            y += 3
-            doc.setFontSize(7.5); doc.setFont('helvetica', 'bold')
-            doc.setTextColor(...(res >= 0 ? green : red))
-            doc.text(`Resultado: ${res >= 0 ? '+' : ''}${formatCurrency(res)}`, pageW - 14, y, { align: 'right' })
-            y += 5
-          } else { y += 3 }
+        }
+
+        if (showOnlyExp.length > 0) {
+          const rows = showOnlyExp.map(expTableRow)
+          if (showOnlyExp.length > 1) rows.push(['', '', 'Subtotal', formatCurrency(showOnlyExp.reduce((s, e) => s + e.amount, 0))])
+          drawExpTable(rows, 'Despesas do Show', amberHead, amberText)
+          y += 1
+        }
+
+        if (fixedExp.length > 0) {
+          const fixedHead2: [number, number, number] = [253, 230, 138]  // amber-200
+          const fixedText2: [number, number, number] = [120, 53,  15]   // amber-900
+          const rows = fixedExp.map(expTableRow)
+          if (fixedExp.length > 1) rows.push(['', '', 'Subtotal fixos', formatCurrency(fixedExp.reduce((s, e) => s + e.amount, 0))])
+          drawExpTable(rows, 'Custos Fixos  ↺', fixedHead2, fixedText2)
+          y += 1
+        }
+
+        if (showExpenses.length > 0 && show.cache_value > 0) {
+          const res = show.cache_value - totalShowExp
+          y += 2
+          // Detail line: cachê − desp.show − fixos = resultado
+          doc.setFontSize(7); doc.setFont('helvetica', 'normal'); doc.setTextColor(...gray)
+          const detailParts: string[] = []
+          if (showOnlyExp.length) detailParts.push(`desp. show ${formatCurrency(showOnlyExp.reduce((s, e) => s + e.amount, 0))}`)
+          if (fixedExp.length)    detailParts.push(`fixos ${formatCurrency(fixedExp.reduce((s, e) => s + e.amount, 0))}`)
+          if (detailParts.length) doc.text(`${formatCurrency(show.cache_value)} − ${detailParts.join(' − ')}`, 22, y)
+          y += 4
+          doc.setFontSize(7.5); doc.setFont('helvetica', 'bold')
+          doc.setTextColor(...(res >= 0 ? green : red))
+          doc.text(`Resultado: ${res >= 0 ? '+' : ''}${formatCurrency(res)}`, pageW - 14, y, { align: 'right' })
+          y += 5
+        } else if (showExpenses.length === 0) {
+          y += 2
         }
 
         if (y > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); y = 16 }
