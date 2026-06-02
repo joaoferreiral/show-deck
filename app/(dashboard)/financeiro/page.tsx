@@ -1585,6 +1585,84 @@ export default function FinanceiroPage() {
         if (y > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); y = 16 }
       }
 
+      // ── Seção: Custos Fixos por artista ────────────────────────────────────
+      const allFixedCosts = fixedCostsData ?? []
+      if (allFixedCosts.length > 0) {
+        if (y > doc.internal.pageSize.getHeight() - 50) { doc.addPage(); y = 16 }
+        else y += 6
+
+        doc.setTextColor(...brand); doc.setFontSize(11); doc.setFont('helvetica', 'bold')
+        doc.text('Custos Fixos por Artista', 14, y); y += 4
+
+        // Group by artist
+        const fcByArtist = new Map<string, { name: string; costs: typeof allFixedCosts }>()
+        allFixedCosts.forEach(c => {
+          const artistName = (c.artists as { name: string } | null)?.name ?? 'Sem artista'
+          if (!fcByArtist.has(c.artist_id)) fcByArtist.set(c.artist_id, { name: artistName, costs: [] })
+          fcByArtist.get(c.artist_id)!.costs.push(c)
+        })
+
+        const fixedHead2: [number, number, number] = [253, 230, 138]
+        const fixedText2: [number, number, number] = [120, 53, 15]
+
+        for (const { name: artistName, costs } of fcByArtist.values()) {
+          if (y > doc.internal.pageSize.getHeight() - 40) { doc.addPage(); y = 16 }
+
+          const active   = costs.filter(c => c.active)
+          const inactive = costs.filter(c => !c.active)
+          const monthlyTotal = active.reduce((s, c) => s + c.amount, 0)
+
+          const rows: string[][] = [
+            ...active.map(c => [
+              FIXED_COST_CATEGORY_CONFIG[c.category as FixedCostCategory]?.label ?? c.category,
+              c.description,
+              'Ativo',
+              formatCurrency(c.amount),
+            ]),
+            ...inactive.map(c => [
+              FIXED_COST_CATEGORY_CONFIG[c.category as FixedCostCategory]?.label ?? c.category,
+              c.description,
+              'Inativo',
+              formatCurrency(c.amount),
+            ]),
+          ]
+          rows.push(['', '', 'Total mensal (ativos)', formatCurrency(monthlyTotal)])
+
+          autoTable(doc, {
+            startY: y,
+            head: [[
+              { content: artistName, colSpan: 3, styles: { fontStyle: 'bold', fontSize: 8, textColor: fixedText2, fillColor: fixedHead2 } },
+              { content: formatCurrency(monthlyTotal) + '/mês', styles: { fontStyle: 'bold', fontSize: 8, textColor: fixedText2, fillColor: fixedHead2, halign: 'right' } },
+            ]],
+            body: rows,
+            styles: { fontSize: 7.5, cellPadding: { top: 1.2, bottom: 1.2, left: 4, right: 3 } },
+            bodyStyles: { textColor: gray },
+            margin: { left: 14, right: 14 }, tableWidth: pageW - 28,
+            columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 22 }, 3: { cellWidth: 35, halign: 'right' } },
+            didParseCell(data) {
+              if (data.section === 'body') {
+                const statusCol = data.column.index === 2
+                if (statusCol && String(data.cell.raw) === 'Inativo') {
+                  data.cell.styles.textColor = [150, 150, 150] as [number, number, number]
+                  data.cell.styles.fontStyle = 'italic'
+                }
+                if (data.row.index === rows.length - 1) {
+                  data.cell.styles.fontStyle = 'bold'; data.cell.styles.textColor = brand
+                }
+              }
+            },
+          })
+          y = (doc as any).lastAutoTable.finalY + 3
+        }
+
+        // Grand total fixed costs
+        const grandFixedTotal = allFixedCosts.filter(c => c.active).reduce((s, c) => s + c.amount, 0)
+        y += 1
+        doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(...brand)
+        doc.text(`Total mensal de custos fixos ativos: ${formatCurrency(grandFixedTotal)}`, pageW - 14, y, { align: 'right' })
+        y += 6
+      }
+
       const totalPages = (doc.internal as any).getNumberOfPages()
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
