@@ -35,7 +35,7 @@ export async function GET(req: Request) {
 
   let query = sb
     .from('fixed_costs')
-    .select('id, org_id, artist_id, description, amount, category, active, notes, created_at, updated_at, artists(id, name, color, photo_url)')
+    .select('id, org_id, artist_id, description, amount, category, active, notes, due_day, created_at, updated_at, artists(id, name, color, photo_url)')
     .eq('org_id', orgId)
     .order('created_at', { ascending: true })
 
@@ -62,12 +62,13 @@ export async function POST(req: Request) {
   if (!orgId) return NextResponse.json({ error: 'Sem organização' }, { status: 403 })
 
   const body = await req.json()
-  const { artist_id, description, amount, category, notes } = body as {
+  const { artist_id, description, amount, category, notes, due_day } = body as {
     artist_id: string
     description: string
     amount: number
     category?: string
     notes?: string
+    due_day?: number | null
   }
 
   if (!artist_id)      return NextResponse.json({ error: 'artist_id é obrigatório' }, { status: 400 })
@@ -95,8 +96,9 @@ export async function POST(req: Request) {
       category:    category ?? 'outros',
       active:      true,
       notes:       notes ?? null,
+      due_day:     due_day ?? null,
     })
-    .select('id, org_id, artist_id, description, amount, category, active, notes, created_at, updated_at')
+    .select('id, org_id, artist_id, description, amount, category, active, notes, due_day, created_at, updated_at')
     .single()
 
   if (error) {

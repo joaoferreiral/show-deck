@@ -3,13 +3,14 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from '@/components/providers/session-provider'
-import { useFinanceiro, useArtists, useFixedCosts } from '@/lib/hooks/queries'
-import type { FinanceiroShow, ShowPayment, ShowExpense, FixedCost } from '@/lib/hooks/queries'
+import { useFinanceiro, useArtists, useFixedCosts, useFixedCostPayments } from '@/lib/hooks/queries'
+import type { FinanceiroShow, ShowPayment, ShowExpense, FixedCost, FixedCostPayment } from '@/lib/hooks/queries'
 import { formatCurrency, formatDate, cn, initials } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
+import { DateInput } from '@/components/ui/date-input'
 import { useToast } from '@/components/ui/use-toast'
 import {
   ChevronDown, ChevronRight,
@@ -17,7 +18,7 @@ import {
   Plus, Trash2, LayoutList, Users, TrendingUp,
   AlertTriangle, Ban, Download, Loader2, X, Repeat,
   Truck, Building2, Sparkles, Music2, Utensils, Wrench, MoreHorizontal,
-  ArrowUpRight,
+  ArrowUpRight, CalendarCheck2, CalendarX2,
 } from 'lucide-react'
 import {
   startOfYear, endOfYear, startOfMonth, endOfMonth,
@@ -383,13 +384,6 @@ function AddExpenseForm({
   const [paidDate, setPaidDate]       = useState(format(new Date(), 'dd/MM/yyyy'))
   const [saving, setSaving]           = useState(false)
 
-  function handlePaidDateInput(e: React.ChangeEvent<HTMLInputElement>) {
-    let raw = e.target.value.replace(/\D/g, '').slice(0, 8)
-    if (raw.length > 4) raw = raw.slice(0, 2) + '/' + raw.slice(2, 4) + '/' + raw.slice(4)
-    else if (raw.length > 2) raw = raw.slice(0, 2) + '/' + raw.slice(2)
-    setPaidDate(raw)
-  }
-
   async function handleSave() {
     const parsedAmount = parseFloat(amount.replace(',', '.'))
     if (!parsedAmount || parsedAmount <= 0) {
@@ -466,14 +460,7 @@ function AddExpenseForm({
         {paid && (
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] text-muted-foreground">em</span>
-            <Input
-              type="text"
-              value={paidDate}
-              onChange={handlePaidDateInput}
-              placeholder="dd/mm/aaaa"
-              maxLength={10}
-              className="h-7 text-xs w-32"
-            />
+            <DateInput value={paidDate} onChange={setPaidDate} size="sm" />
           </div>
         )}
         <div className="flex items-center gap-1.5 ml-auto">
@@ -578,13 +565,11 @@ function AddPaymentPlan({
                 />
               </div>
               {/* Date */}
-              <Input
-                type="text"
-                placeholder="dd/mm/aaaa"
+              <DateInput
                 value={d.date}
-                onChange={e => updateDraft(d.id, { date: maskDateStr(e.target.value) })}
-                maxLength={10}
-                className="h-7 text-xs w-28 shrink-0"
+                onChange={v => updateDraft(d.id, { date: v })}
+                size="sm"
+                className="shrink-0"
               />
               {/* Description */}
               <Input
@@ -615,13 +600,11 @@ function AddPaymentPlan({
                 <span className="text-[11px] text-muted-foreground">Já pago em</span>
               </label>
               {d.paid && (
-                <Input
-                  type="text"
-                  placeholder="dd/mm/aaaa"
+                <DateInput
                   value={d.paidDate}
-                  onChange={e => updateDraft(d.id, { paidDate: maskDateStr(e.target.value) })}
-                  maxLength={10}
-                  className="h-6 text-xs w-28"
+                  onChange={v => updateDraft(d.id, { paidDate: v })}
+                  size="sm"
+                  inputClassName="h-6"
                 />
               )}
             </div>
@@ -672,17 +655,22 @@ function AddFixedCostForm({
   const [description, setDescription] = useState('')
   const [amount, setAmount]           = useState('')
   const [category, setCategory]       = useState<FixedCostCategory>('outros')
+  const [dueDay, setDueDay]           = useState('')
   const [saving, setSaving]           = useState(false)
 
   async function handleSave() {
     const parsedAmount = parseCurrencyFin(amount)
     if (!description.trim()) { toast({ title: 'Descrição obrigatória', variant: 'destructive' }); return }
     if (!parsedAmount || parsedAmount <= 0) { toast({ title: 'Valor inválido', variant: 'destructive' }); return }
+    const dueDayNum = dueDay ? parseInt(dueDay, 10) : null
+    if (dueDayNum !== null && (isNaN(dueDayNum) || dueDayNum < 1 || dueDayNum > 31)) {
+      toast({ title: 'Dia de vencimento inválido (1–31)', variant: 'destructive' }); return
+    }
     setSaving(true)
     try {
       const res = await fetch('/api/fixed-costs', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artist_id: artistId, description: description.trim(), amount: parsedAmount, category }),
+        body: JSON.stringify({ artist_id: artistId, description: description.trim(), amount: parsedAmount, category, due_day: dueDayNum }),
       })
       if (!res.ok) throw new Error()
       toast({ title: 'Custo fixo adicionado' })
@@ -720,6 +708,19 @@ function AddFixedCostForm({
           className="h-8 text-xs flex-1 min-w-[140px]"
         />
       </div>
+      {/* Due day */}
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-muted-foreground">Vence todo dia</span>
+        <Input
+          type="number"
+          min={1} max={31}
+          placeholder="–"
+          value={dueDay}
+          onChange={e => setDueDay(e.target.value)}
+          className="h-7 text-xs w-14 tabular-nums"
+        />
+        <span className="text-[11px] text-muted-foreground/50">(opcional)</span>
+      </div>
       <div className="flex items-center gap-1.5">
         <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 text-xs px-3">
           {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Adicionar'}
@@ -735,12 +736,15 @@ function AddFixedCostForm({
 // ─── Artist Fixed Costs Card ──────────────────────────────────────────────────
 
 function ArtistFixedCostsCard({
-  artist, costs, orgId, queryClient,
+  artist, costs, orgId, queryClient, monthPayments, currentYear, currentMonth,
 }: {
   artist: { id: string; name: string; color: string; photo_url: string | null }
   costs: FixedCost[]
   orgId: string
   queryClient: ReturnType<typeof useQueryClient>
+  monthPayments: FixedCostPayment[]
+  currentYear: number
+  currentMonth: number
 }) {
   const { toast } = useToast()
   const [adding, setAdding] = useState(false)
@@ -752,6 +756,52 @@ function ArtistFixedCostsCard({
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: ['fixed-costs', orgId] })
+  }
+
+  function invalidatePayments() {
+    queryClient.invalidateQueries({ queryKey: ['fixed-cost-payments', orgId, currentYear, currentMonth] })
+  }
+
+  async function toggleMonthlyPayment(cost: FixedCost) {
+    const existing = monthPayments.find(p => p.fixed_cost_id === cost.id)
+    if (existing) {
+      // Mark as unpaid — optimistic remove
+      queryClient.setQueryData<FixedCostPayment[]>(
+        ['fixed-cost-payments', orgId, currentYear, currentMonth],
+        old => old ? old.filter(p => p.id !== existing.id) : old
+      )
+      try {
+        await fetch('/api/fixed-cost-payments', {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fixed_cost_id: cost.id, year: currentYear, month: currentMonth }),
+        })
+        invalidatePayments()
+      } catch {
+        invalidatePayments()
+        toast({ title: 'Erro ao desfazer pagamento', variant: 'destructive' })
+      }
+    } else {
+      // Mark as paid — optimistic add
+      const optimistic: FixedCostPayment = {
+        id: `optimistic-${cost.id}`, org_id: orgId, fixed_cost_id: cost.id,
+        year: currentYear, month: currentMonth, paid_at: new Date().toISOString(), created_at: new Date().toISOString(),
+      }
+      queryClient.setQueryData<FixedCostPayment[]>(
+        ['fixed-cost-payments', orgId, currentYear, currentMonth],
+        old => old ? [...old, optimistic] : [optimistic]
+      )
+      try {
+        await fetch('/api/fixed-cost-payments', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fixed_cost_id: cost.id, year: currentYear, month: currentMonth }),
+        })
+        invalidatePayments()
+        toast({ title: `${cost.description} — pago este mês ✓` })
+      } catch {
+        invalidatePayments()
+        toast({ title: 'Erro ao registrar pagamento', variant: 'destructive' })
+      }
+    }
   }
 
   async function toggleActive(cost: FixedCost) {
@@ -786,9 +836,11 @@ function ArtistFixedCostsCard({
   }
 
   const CostRow = ({ cost }: { cost: FixedCost }) => {
-    const catKey    = cost.category as FixedCostCategory
-    const catConfig = FIXED_COST_CATEGORY_CONFIG[catKey] ?? FIXED_COST_CATEGORY_CONFIG.outros
-    const CatIcon   = catConfig.icon
+    const catKey       = cost.category as FixedCostCategory
+    const catConfig    = FIXED_COST_CATEGORY_CONFIG[catKey] ?? FIXED_COST_CATEGORY_CONFIG.outros
+    const CatIcon      = catConfig.icon
+    const paidThisMonth = monthPayments.some(p => p.fixed_cost_id === cost.id)
+
     return (
       <div className={cn(
         'group flex items-center gap-2.5 py-2 px-2 rounded-lg transition-colors',
@@ -801,15 +853,40 @@ function ArtistFixedCostsCard({
         )}>
           {cost.description}
         </span>
-        <span className="text-[10px] text-muted-foreground/60 hidden sm:inline shrink-0">
-          {catConfig.label}
-        </span>
+
+        {/* Due day badge */}
+        {cost.due_day && cost.active && (
+          <span className="text-[10px] text-muted-foreground/50 shrink-0 tabular-nums hidden sm:inline">
+            dia {cost.due_day}
+          </span>
+        )}
+
         <span className={cn(
           'text-xs font-semibold tabular-nums shrink-0',
           cost.active ? 'text-foreground' : 'text-muted-foreground/50',
         )}>
           {formatCurrency(cost.amount)}
         </span>
+
+        {/* Monthly payment toggle */}
+        {cost.active && (
+          <button
+            onClick={() => toggleMonthlyPayment(cost)}
+            title={paidThisMonth ? 'Marcar como não pago neste mês' : 'Marcar como pago neste mês'}
+            className={cn(
+              'shrink-0 p-1 rounded transition-all',
+              paidThisMonth
+                ? 'text-emerald-600 dark:text-emerald-400 opacity-100'
+                : 'text-muted-foreground/40 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-emerald-600',
+            )}
+          >
+            {paidThisMonth
+              ? <CalendarCheck2 className="h-3.5 w-3.5" />
+              : <CalendarX2 className="h-3.5 w-3.5" />
+            }
+          </button>
+        )}
+
         {/* Toggle active */}
         <button
           onClick={() => toggleActive(cost)}
@@ -859,9 +936,27 @@ function ArtistFixedCostsCard({
             {monthlyTotal > 0 && <span className="tabular-nums ml-1.5 font-medium text-foreground">· {formatCurrency(monthlyTotal)}/mês</span>}
           </p>
         </div>
-        <span className="shrink-0 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest hidden sm:inline">
-          Total mensal
-        </span>
+        {/* Month payment summary */}
+        {(() => {
+          const paidCosts   = activeCosts.filter(c => monthPayments.some(p => p.fixed_cost_id === c.id))
+          const paidTotal   = paidCosts.reduce((s, c) => s + c.amount, 0)
+          const pendingTotal = monthlyTotal - paidTotal
+          if (monthlyTotal === 0) return null
+          return (
+            <div className="shrink-0 text-right hidden sm:block">
+              {paidTotal > 0 && (
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 tabular-nums font-medium">
+                  {formatCurrency(paidTotal)} pago
+                </p>
+              )}
+              {pendingTotal > 0 && (
+                <p className="text-[10px] text-muted-foreground/60 tabular-nums">
+                  {formatCurrency(pendingTotal)} pendente
+                </p>
+              )}
+            </div>
+          )
+        })()}
         <span className="shrink-0 text-sm font-bold tabular-nums">{formatCurrency(monthlyTotal)}</span>
       </button>
 
@@ -1287,10 +1382,15 @@ export default function FinanceiroPage() {
   const [viewMode, setViewMode]         = useState<ViewMode>('shows')
   const [exporting, setExporting]       = useState(false)
 
+  const now = new Date()
+  const currentYear  = now.getFullYear()
+  const currentMonth = now.getMonth() + 1  // 1-12
+
   const { from, to } = getPeriodRange(period)
   const { data: shows, isLoading } = useFinanceiro(orgId, from, to, filterArtist || undefined)
   const { data: artistsData } = useArtists(orgId)
   const { data: fixedCostsData, isLoading: fixedCostsLoading } = useFixedCosts(orgId)
+  const { data: monthPayments = [] } = useFixedCostPayments(orgId, currentYear, currentMonth)
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['financeiro', orgId] })
@@ -1851,6 +1951,9 @@ export default function FinanceiroPage() {
                   costs={costs}
                   orgId={orgId}
                   queryClient={queryClient}
+                  monthPayments={monthPayments}
+                  currentYear={currentYear}
+                  currentMonth={currentMonth}
                 />
               ))}
 

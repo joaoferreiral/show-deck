@@ -45,12 +45,13 @@ export async function PATCH(
   if (!existing) return NextResponse.json({ error: 'Custo não encontrado' }, { status: 404 })
 
   const body = await req.json()
-  const { description, amount, category, active, notes } = body as {
+  const { description, amount, category, active, notes, due_day } = body as {
     description?: string
     amount?: number
     category?: string
     active?: boolean
     notes?: string | null
+    due_day?: number | null
   }
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -59,6 +60,7 @@ export async function PATCH(
   if ('category'    in body) updates.category    = category
   if ('active'      in body) updates.active      = active
   if ('notes'       in body) updates.notes       = notes
+  if ('due_day'     in body) updates.due_day     = due_day
 
   const { data: updated, error } = await sb
     .from('fixed_costs')

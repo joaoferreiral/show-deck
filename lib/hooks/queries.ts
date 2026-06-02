@@ -404,9 +404,20 @@ export type FixedCost = {
   category: string
   active: boolean
   notes: string | null
+  due_day: number | null
   created_at: string
   updated_at: string
   artists?: { id: string; name: string; color: string; photo_url: string | null } | null
+}
+
+export type FixedCostPayment = {
+  id: string
+  org_id: string
+  fixed_cost_id: string
+  year: number
+  month: number
+  paid_at: string
+  created_at: string
 }
 
 export function useFixedCosts(orgId: string) {
@@ -420,6 +431,20 @@ export function useFixedCosts(orgId: string) {
       return (fixedCosts ?? []) as FixedCost[]
     },
     staleTime: 60 * 1000,
+  })
+}
+
+export function useFixedCostPayments(orgId: string, year: number, month: number) {
+  return useQuery({
+    queryKey: ['fixed-cost-payments', orgId, year, month],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const res = await fetch(`/api/fixed-cost-payments?year=${year}&month=${month}`)
+      if (!res.ok) throw new Error('Falha ao carregar pagamentos de custos fixos')
+      const { payments } = await res.json() as { payments: FixedCostPayment[] }
+      return (payments ?? []) as FixedCostPayment[]
+    },
+    staleTime: 30 * 1000,
   })
 }
 

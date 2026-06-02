@@ -27,6 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { TimePicker } from '@/components/ui/time-picker'
+import { DateInput } from '@/components/ui/date-input'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -864,13 +865,11 @@ export default function NovoEventoPage() {
                         />
                       </div>
                       {/* Date */}
-                      <Input
-                        type="text"
-                        placeholder="dd/mm/aaaa"
+                      <DateInput
                         value={inst.date}
-                        onChange={e => updatePlanInst(inst.id, { date: maskDate(e.target.value) })}
-                        maxLength={10}
-                        className="h-9 w-32 shrink-0"
+                        onChange={v => updatePlanInst(inst.id, { date: v })}
+                        size="md"
+                        className="shrink-0"
                       />
                       {/* Description */}
                       <Input
@@ -902,13 +901,10 @@ export default function NovoEventoPage() {
                         <span className="text-xs text-muted-foreground">Já pago em</span>
                       </label>
                       {inst.paid && (
-                        <Input
-                          type="text"
-                          placeholder="dd/mm/aaaa"
+                        <DateInput
                           value={inst.paidDate}
-                          onChange={e => updatePlanInst(inst.id, { paidDate: maskDate(e.target.value) })}
-                          maxLength={10}
-                          className="h-7 text-xs w-32"
+                          onChange={v => updatePlanInst(inst.id, { paidDate: v })}
+                          size="sm"
                         />
                       )}
                     </div>
